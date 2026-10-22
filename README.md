@@ -155,6 +155,14 @@ benötigt kein NetBox und führt keine externen Abfragen oder Exporte aus.
 python3 -m unittest discover -s tests -v
 ```
 
+Die JavaScript-Prüfungen der Kandidatenauswahl benötigen für die Entwicklung
+zusätzlich Node.js (im Serverbetrieb nicht erforderlich):
+
+```bash
+node --check web/app.js
+node --test tests/test_mapping.cjs
+```
+
 Die Tests nutzen temporäre SQLite-Datenbanken und simulierte NetBox-APIs.
 Der Test der lokalen SSH-Passwortvermittlung wird übersprungen, wenn die
 Ausführungsumgebung Unix-Socket-Bindings verbietet. Die HTTP-Handler werden

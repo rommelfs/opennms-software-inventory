@@ -180,6 +180,66 @@ class NetBoxWorkflowTests(unittest.TestCase):
             manager.confirm(self.db, self.client, self.config, plan, apply=True)
         self.assertIsNone(self.db.binding('opennms-lab', '42', manager.endpoint(self.config)))
 
+    def test_duplicate_target_identifies_both_hosts_and_saves_nothing(self):
+        self.db.observation(snap())
+        self.db.observation(snap(node='43', label='alias.example.org'))
+        # A third valid selection must also remain uncommitted on batch failure.
+        third = snap(node='44', label='separate.example.org')
+        third['source']['address'] = '192.0.2.44'
+        self.db.observation(third)
+        self.client.objects['devices'].append({'id': 124, 'name': 'separate.example.org', 'custom_fields': {}})
+        plan = manager.propose(self.db, self.client, self.config)
+        for row in plan['nodes']:
+            row['approve'] = True
+        with self.assertRaises(manager.MappingConflict) as caught:
+            manager.confirm(self.db, self.client, self.config, plan, apply=True)
+        conflict = caught.exception.conflicts[0]
+        self.assertEqual(conflict['code'], 'duplicate_target')
+        self.assertEqual(conflict['node_ids'], ['42', '43'])
+        for text in ('web.example.org', 'alias.example.org', '#42', '#43', 'devices #123'):
+            self.assertIn(text, str(caught.exception))
+        self.assertEqual(self.db.db.execute('SELECT COUNT(*) FROM bindings').fetchone()[0], 0)
+        self.assertTrue(all(method == 'GET' for method, _, _ in self.client.calls))
+        # Deselecting only the duplicate allows both independent mappings.
+        plan['nodes'][1]['approve'] = False
+        self.assertEqual(manager.confirm(self.db, self.client, self.config, plan, apply=True)['bindings'], 2)
+
+    def test_vanished_candidate_is_distinct_from_duplicate_target(self):
+        self.db.observation(snap())
+        plan = manager.propose(self.db, self.client, self.config)
+        plan['nodes'][0]['approve'] = True
+        self.client.objects['devices'].clear()
+        with self.assertRaises(manager.MappingConflict) as caught:
+            manager.confirm(self.db, self.client, self.config, plan, apply=True)
+        conflict = caught.exception.conflicts[0]
+        self.assertEqual(conflict['code'], 'candidate_missing')
+        self.assertEqual(conflict['node_ids'], ['42'])
+        self.assertIn('web.example.org', conflict['message'])
+        self.assertIn('devices #123', conflict['message'])
+        self.assertIsNone(self.db.binding('opennms-lab', '42', manager.endpoint(self.config)))
+
+    def test_occupied_candidate_reports_owner_instead_of_generic_evidence_change(self):
+        self.db.observation(snap())
+        plan = manager.propose(self.db, self.client, self.config)
+        plan['nodes'][0]['approve'] = True
+        self.client.objects['devices'][0]['custom_fields'][self.config['netbox']['identity_field']] = 'other-source:99'
+        with self.assertRaises(manager.MappingConflict) as caught:
+            manager.confirm(self.db, self.client, self.config, plan, apply=True)
+        self.assertEqual(caught.exception.conflicts[0]['code'], 'target_occupied')
+        self.assertIn('other-source:99', str(caught.exception))
+        self.assertIsNone(self.db.binding('opennms-lab', '42', manager.endpoint(self.config)))
+
+    def test_changed_candidate_identifies_node_and_target(self):
+        self.db.observation(snap())
+        plan = manager.propose(self.db, self.client, self.config)
+        plan['nodes'][0]['approve'] = True
+        self.client.objects['devices'][0]['name'] = 'renamed.example.org'
+        with self.assertRaises(manager.MappingConflict) as caught:
+            manager.confirm(self.db, self.client, self.config, plan, apply=True)
+        self.assertEqual(caught.exception.conflicts[0]['code'], 'candidate_changed')
+        self.assertIn('#42', str(caught.exception))
+        self.assertIn('devices #123', str(caught.exception))
+
     def test_dry_run_and_repeated_sync_do_not_write(self):
         host = self.prepared()
         preview = manager.sync_one(self.db, self.client, self.config, host)

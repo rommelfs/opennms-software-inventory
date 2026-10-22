@@ -166,6 +166,34 @@ class WebTests(unittest.TestCase):
         self.assertIsNotNone(self.app.plan)
         self.assertTrue(all(method == 'GET' for method, _, _ in self.client.calls))
 
+    def test_http_binding_failure_returns_conflicts_and_can_be_corrected(self):
+        with History(self.state / 'history.sqlite3') as db:
+            db.observation(snap(node='43', label='alias.example.org'))
+        self.app.refresh()
+        selections = [{'node_id': node, 'target': {'type': 'devices', 'id': 123}} for node in ('42', '43')]
+        code, _, data = self.request('POST', '/api/bind', body={'selections': selections})
+        self.assertEqual(code, 202)
+        failed = self.wait_job(json.loads(data)['job_id'])
+        code, _, data = self.request('GET', '/api/jobs/' + failed['id'])
+        self.assertEqual(code, 200)
+        failed = json.loads(data)
+        self.assertEqual(failed['status'], 'failed')
+        self.assertEqual(failed['conflicts'][0]['code'], 'duplicate_target')
+        self.assertEqual(failed['conflicts'][0]['node_ids'], ['42', '43'])
+        with History(self.state / 'history.sqlite3') as db:
+            self.assertEqual(db.db.execute('SELECT COUNT(*) FROM bindings').fetchone()[0], 0)
+        # The reviewed plan stays usable after the duplicate selection is removed.
+        code, _, data = self.request('POST', '/api/bind', body={'selections': selections[:1]})
+        self.assertEqual(self.wait_job(json.loads(data)['job_id'])['status'], 'done')
+        self.assertTrue(all(method == 'GET' for method, _, _ in self.client.calls))
+
+    def test_mapping_helper_asset_is_served_and_loaded_before_app(self):
+        code, _, script = self.request('GET', '/mapping.js', authorized=False)
+        self.assertEqual(code, 200)
+        self.assertIn(b'selectionConflicts', script)
+        code, _, html = self.request('GET', '/', authorized=False)
+        self.assertLess(html.index(b'/mapping.js'), html.index(b'/app.js'))
+
     def test_post_outside_api_does_not_start_job(self):
         for path in ('/refresh', '/other/api/refresh', '/api/'):
             with self.subTest(path=path):

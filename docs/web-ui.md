@@ -163,3 +163,21 @@ Verifizierungsgrenze dieser Lieferung: JavaScript-Syntax und Backend-Tests sind
 geprüft. Ein grafischer Browserstart war in der Entwicklungsumgebung nicht
 möglich; deshalb gibt es noch keine abgeschlossene visuelle Browserabnahme.
 Die Anbindung an dein NetBox 4.5.3 ist weiterhin auf ccq live zu prüfen.
+
+## Konflikte beim Bestätigen
+
+Ein NetBox-Device oder eine VM kann jeweils nur einem OpenNMS-Node zugeordnet
+werden. Wählen mehrere Nodes dasselbe Ziel, markiert die Oberfläche die
+betroffenen Zeilen und sperrt „Auswahl bestätigen“. Unter dem Filter
+„Konflikte“ lassen sich diese Zeilen gemeinsam anzeigen, auch wenn zuvor
+eine Suche oder ein anderer Filter aktiv war. Anhand von Node-ID, IP und
+Location prüfen, welcher Node zu dem Asset gehört; die andere Checkbox
+abwählen oder ein anderes passendes Ziel auswählen.
+
+Beim Speichern werden alle ausgewählten Kandidaten erneut aus NetBox gelesen.
+Ein inzwischen entferntes, anders belegtes oder verändertes Ziel wird mit
+Hostnamen, Node-ID und Ziel-ID gemeldet. Dann „NetBox abgleichen“ erneut
+ausführen und die betroffene Auswahl neu prüfen. Ein neuer Abgleich setzt
+die bisherige Auswahl zurück. Eine abgelehnte Bestätigung erhält die Auswahl;
+es werden keine Zuordnungen aus dieser Anfrage gespeichert und keine
+NetBox-Felder geändert. Bereits bestätigte Zuordnungen bleiben erhalten.

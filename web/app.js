@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const element = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
 const chip = (text, kind = 'neutral') => element('span', text, 'chip ' + kind);
-const S = {data: null, choices: new Map(), selected: new Set(), busy: false, page: 'mapping', preview: null, previewId: null, detail: null, detailTab: 'packages'};
+const S = {data: null, choices: new Map(), selected: new Set(), conflicts: [], busy: false, page: 'mapping', preview: null, previewId: null, detail: null, detailTab: 'packages'};
 let token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
 try { token ||= sessionStorage.getItem('inventory-token') || ''; if (token) sessionStorage.setItem('inventory-token', token); if (location.hash) history.replaceState(null, '', location.pathname); } catch (_) {}
 const date = value => { if (!value) return 'Noch keine'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('de-DE', {dateStyle:'medium', timeStyle:'short'}); };
@@ -10,6 +10,7 @@ const targetKey = c => c.type + ':' + c.id;
 const prettyType = type => type === 'devices' ? 'Device' : 'VM';
 const candidateFor = row => row.candidates.find(c => targetKey(c) === S.choices.get(row.node_id));
 const available = (row,c) => (!c.identity_key || c.identity_key === S.data.source_id + ':' + row.node_id) && (!c.bound_node_id || (c.bound_node_id === row.node_id && (!c.bound_source_id || c.bound_source_id === S.data.source_id)));
+const mappingConflicts = () => [...InventoryMapping.selectionConflicts(S.data?.nodes || [], S.choices, S.selected), ...S.conflicts.filter(c => c.code !== 'duplicate_target' && c.node_ids.some(id => S.selected.has(id)))];
 
 async function api(path, body) {
   const response = await fetch(path, {method:body == null ? 'GET':'POST', headers:{Authorization:'Bearer '+token, ...(body == null ? {} : {'Content-Type':'application/json'})}, ...(body == null ? {} : {body:JSON.stringify(body)}), cache:'no-store'});
@@ -23,7 +24,7 @@ function notify(message, kind=''){ const panel=$('notice'); panel.className='not
 function setBusy(value) {
   S.busy=value;
   for(const id of ['import-button','refresh-button','select-clear','preview-button']) $(id).disabled=value;
-  $('save-button').disabled=value || !S.selected.size || S.data?.demo;
+  $('save-button').disabled=value || !S.selected.size || S.data?.demo || mappingConflicts().length > 0;
   $('apply-button').disabled=value || !S.preview?.some(row=>row.action==='would_update') || S.preview?.some(row=>row.action==='failed') || S.data?.demo;
 }
 async function loadState(){
@@ -55,9 +56,10 @@ function render(){
 }
 function visibleRows(){
   const query=$('search').value.toLocaleLowerCase(), filter=$('filter').value, eligible=new Set(S.data.bulk_eligible);
+  const conflicts=new Set(mappingConflicts().flatMap(c=>c.node_ids));
   return S.data.nodes.filter(row=>{
     const text=[row.label,row.node_id,row.address,row.location,...row.candidates.flatMap(c=>[c.name,...(c.dns_names||[]),...(c.addresses||[]).map(ip=>ip.address)])].join(' ').toLocaleLowerCase();
-    return (!query||text.includes(query)) && (filter==='all'||filter==='open'&&!row.existing_binding||filter==='bound'&&row.existing_binding||filter==='clear'&&eligible.has(row.node_id)||filter==='ambiguous'&&!row.existing_binding&&row.candidates.length>1||filter==='missing'&&!row.existing_binding&&!row.candidates.length);
+    return (!query||text.includes(query)) && (filter==='all'||filter==='conflicts'&&conflicts.has(row.node_id)||filter==='open'&&!row.existing_binding||filter==='bound'&&row.existing_binding||filter==='clear'&&eligible.has(row.node_id)||filter==='ambiguous'&&!row.existing_binding&&row.candidates.length>1||filter==='missing'&&!row.existing_binding&&!row.candidates.length);
   });
 }
 function evidence(row,c){
@@ -75,11 +77,13 @@ function evidence(row,c){
 function renderMapping(){
   if(!S.data)return;
   const rows=visibleRows();
+  const conflicts=mappingConflicts();
   const rendered=rows.map(row=>{
-    const tr=element('tr',null,S.selected.has(row.node_id)?'selected':'');
+    const rowConflicts=conflicts.filter(c=>c.node_ids.includes(row.node_id));
+    const tr=element('tr',null,rowConflicts.length?'mapping-conflict':S.selected.has(row.node_id)?'selected':'');
     const checkCell=element('td',null,'check-col'), checkbox=element('input');checkbox.type='checkbox';checkbox.setAttribute('aria-label',(row.label||'Node '+row.node_id)+' auswählen');
     const chosen=candidateFor(row);
-    checkbox.checked=S.selected.has(row.node_id);checkbox.disabled=!!row.existing_binding||!chosen||!available(row,chosen)||S.busy||row.no_snapshot;
+    checkbox.checked=S.selected.has(row.node_id);checkbox.disabled=S.busy||(!checkbox.checked&&(!!row.existing_binding||!chosen||!available(row,chosen)||row.no_snapshot));
     checkbox.addEventListener('change',()=>{checkbox.checked?S.selected.add(row.node_id):S.selected.delete(row.node_id);renderMapping();setBusy(S.busy);});checkCell.append(checkbox);
     const nameCell=element('td'), name=element('button',row.label||'Node '+row.node_id,'node-name');name.addEventListener('click',()=>openDetail(row));nameCell.append(name,element('span',(row.address||'Keine SNMP-IP')+' · #'+row.node_id,'subline'));
     if(row.collection_status==='failed')nameCell.append(element('span','Letzte Erfassung fehlgeschlagen','candidate-subline warning'));
@@ -94,7 +98,7 @@ function renderMapping(){
       const placeholder=element('option',row.candidates.length+' Kandidat'+(row.candidates.length>1?'en':'')+' · bitte wählen');placeholder.value='';select.append(placeholder);
       for(const c of row.candidates){const option=element('option',c.name+' · '+prettyType(c.type)+' #'+c.id+(available(row,c)?'':' · bereits belegt'));option.value=targetKey(c);option.disabled=!available(row,c);select.append(option);}
       select.value=S.choices.get(row.node_id)||'';select.disabled=S.busy;
-      select.addEventListener('change',()=>{S.choices.set(row.node_id,select.value);S.selected.delete(row.node_id);S.preview=null;renderMapping();setBusy(S.busy);});
+      select.addEventListener('change',()=>{S.choices.set(row.node_id,select.value);S.selected.delete(row.node_id);S.conflicts=S.conflicts.filter(c=>!c.node_ids.includes(row.node_id));S.preview=null;renderMapping();setBusy(S.busy);});
       candidateCell.append(select);
       if(chosen){
         const scope=[chosen.site||('Site '+(chosen.site_id??'—')),chosen.tenant|| (chosen.tenant_id?'Tenant '+chosen.tenant_id:null)].filter(Boolean).join(' · ');
@@ -108,14 +112,16 @@ function renderMapping(){
       candidateCell.append(element('span',S.data.matched_at?'Kein passendes Ziel gefunden':'Abgleich ausstehend','status-text'));
       if(row.no_snapshot)candidateCell.append(element('div','Noch kein erfolgreicher Softwarestand','candidate-subline warning'));
     }
+    for(const conflict of rowConflicts)candidateCell.append(element('div',conflict.message,'mapping-error'));
     const matchCell=element('td');matchCell.append(evidence(row,chosen));
+    if(rowConflicts.length)matchCell.append(chip('Konflikt','red'));
     const actionCell=element('td',null,'right'), details=element('button','↗','details-button');details.setAttribute('aria-label','Software und Historie für '+(row.label||row.node_id));details.addEventListener('click',()=>openDetail(row));actionCell.append(details);
     tr.append(checkCell,nameCell,loc,candidateCell,matchCell,actionCell);return tr;
   });
   if(!rendered.length){const tr=element('tr',null,'empty-row'),td=element('td',S.data.nodes.length?'Keine Nodes für diesen Filter.':'Noch keine Erfassung eingelesen. Nutze „Erfassung einlesen“.');td.colSpan=6;tr.append(td);rendered.push(tr);}
   $('node-table').replaceChildren(...rendered);
   $('visible-count').textContent=rows.length+' von '+S.data.nodes.length+' Nodes';
-  $('selected-count').textContent=S.selected.size?S.selected.size+' Zuordnung'+(S.selected.size===1?'':'en')+' ausgewählt':'Keine Auswahl';
+  $('selected-count').textContent=(S.selected.size?S.selected.size+' Zuordnung'+(S.selected.size===1?'':'en')+' ausgewählt':'Keine Auswahl')+(conflicts.length?' · Konflikte zuerst auflösen (Filter „Konflikte“)':'');
 }
 function renderSoftware(){
   const rows=S.data.nodes.map(row=>{
@@ -133,10 +139,13 @@ async function runJob(action,body={}){
 async function pollJob(identity){
   while(true){
     const job=await api('/api/jobs/'+identity);
-    if(job.status==='failed'){notify(job.error,'error');setBusy(false);return;}
+    if(job.status==='failed'){
+      if(job.action==='bind'&&job.conflicts){S.conflicts=job.conflicts;$('filter').value='conflicts';$('search').value='';renderMapping();}
+      notify(job.error,'error');setBusy(false);return;
+    }
     if(job.status==='done'){
-      if(job.action==='refresh'||job.action==='import'){S.selected.clear();S.choices.clear();S.preview=null;}
-      if(job.action==='bind'){S.selected.clear();S.preview=null;}
+      if(job.action==='refresh'||job.action==='import'){S.selected.clear();S.choices.clear();S.conflicts=[];S.preview=null;if($('filter').value==='conflicts')$('filter').value='all';}
+      if(job.action==='bind'){S.selected.clear();S.conflicts=[];S.preview=null;if($('filter').value==='conflicts')$('filter').value='open';}
       if(job.action==='sync-preview'||job.action==='sync-apply'){
         S.preview=job.action==='sync-preview'?job.result.results:null;
         S.previewId=job.result.preview_id||null;
@@ -197,7 +206,7 @@ $('auth-form').addEventListener('submit',async event=>{event.preventDefault();to
 $('search').addEventListener('input',renderMapping);$('filter').addEventListener('change',renderMapping);
 $('refresh-button').addEventListener('click',()=>runJob('refresh'));$('import-button').addEventListener('click',()=>runJob('import'));
 $('select-clear').addEventListener('click',()=>{let count=0;for(const row of visibleRows()){if(!row.existing_binding&&S.data.bulk_eligible.includes(row.node_id)){const c=row.candidates[0];S.choices.set(row.node_id,targetKey(c));S.selected.add(row.node_id);count++;}}renderMapping();setBusy(S.busy);notify(count?count+' eindeutige Treffer vorausgewählt. Prüfe die Auswahl und bestätige sie anschließend.':'Keine Treffer für die Sammelauswahl. Erforderlich: ein Kandidat, Name/DNS + IP, kein Konflikt und bei privaten IPs ein konfigurierter Location-Scope.','');});
-$('save-button').addEventListener('click',()=>{const selections=S.data.nodes.filter(row=>S.selected.has(row.node_id)).map(row=>({node_id:row.node_id,target:{type:candidateFor(row).type,id:candidateFor(row).id}}));confirmation(selections.length+' Zuordnung(en) speichern?', 'Die ausgewählten Ziele werden erneut live geprüft und lokal dauerhaft verknüpft. NetBox bleibt unverändert.','Zuordnungen speichern',()=>runJob('bind',{selections}));});
+$('save-button').addEventListener('click',()=>{const conflicts=mappingConflicts();if(conflicts.length){$('filter').value='conflicts';$('search').value='';renderMapping();notify(conflicts[0].message,'error');return;}const selections=S.data.nodes.filter(row=>S.selected.has(row.node_id)).map(row=>({node_id:row.node_id,target:{type:candidateFor(row).type,id:candidateFor(row).id}}));confirmation(selections.length+' Zuordnung(en) speichern?', 'Die ausgewählten Ziele werden erneut live geprüft und lokal dauerhaft verknüpft. NetBox bleibt unverändert.','Zuordnungen speichern',()=>runJob('bind',{selections}));});
 $('preview-button').addEventListener('click',()=>runJob('sync-preview'));
 $('apply-button').addEventListener('click',()=>confirmation('Änderungen nach NetBox schreiben?','Die bestätigten Objekte werden erneut geprüft. Nur die eigenen Software-Inventarfelder werden aktualisiert.','Nach NetBox schreiben',()=>runJob('sync-apply',{preview_id:S.previewId})));
 $('cancel-confirm').addEventListener('click',()=>$('confirm-dialog').close());$('close-detail').addEventListener('click',()=>$('detail-dialog').close());

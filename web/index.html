@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Inventory · OpenNMS / NetBox</title>
-<link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+<link rel="stylesheet" href="/style.css"><script src="/mapping.js" defer></script><script src="/app.js" defer></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -28,7 +28,7 @@
         <div class="workflow-note"><span class="step-circle">1</span><span>Kandidaten abgleichen</span><span class="step-line"></span><span class="step-circle">2</span><span>Zuordnungen prüfen</span><span class="step-line"></span><span class="step-circle">3</span><span>Lokal bestätigen</span><span class="workflow-end">NetBox bleibt dabei unverändert.</span></div>
         <div class="panel">
           <div class="panel-heading"><div><h2>OpenNMS-Nodes <span id="node-total" class="count-badge">0</span></h2><p id="matched-at">NetBox noch nicht abgeglichen</p></div><button class="button primary" id="refresh-button"><span>⇄</span> NetBox abgleichen</button></div>
-          <div class="table-toolbar"><div class="search"><span>⌕</span><input id="search" type="search" aria-label="Nodes und Kandidaten durchsuchen" placeholder="Node, IP oder NetBox-Kandidat suchen …"></div><select id="filter" aria-label="Zuordnungsstatus filtern"><option value="all">Alle Nodes</option><option value="open">Noch offen</option><option value="clear">Eindeutige Treffer</option><option value="ambiguous">Mehrere Kandidaten</option><option value="missing">Ohne Kandidat</option><option value="bound">Bestätigt</option></select><button class="button subtle" id="select-clear">Eindeutige auswählen</button></div>
+          <div class="table-toolbar"><div class="search"><span>⌕</span><input id="search" type="search" aria-label="Nodes und Kandidaten durchsuchen" placeholder="Node, IP oder NetBox-Kandidat suchen …"></div><select id="filter" aria-label="Zuordnungsstatus filtern"><option value="all">Alle Nodes</option><option value="open">Noch offen</option><option value="clear">Eindeutige Treffer</option><option value="conflicts">Konflikte</option><option value="ambiguous">Mehrere Kandidaten</option><option value="missing">Ohne Kandidat</option><option value="bound">Bestätigt</option></select><button class="button subtle" id="select-clear">Eindeutige auswählen</button></div>
           <div class="table-scroll"><table><thead><tr><th class="check-col"><span class="sr-only">Auswahl</span></th><th>OPENNMS-NODE</th><th>LOCATION</th><th>NETBOX-KANDIDAT</th><th>ÜBEREINSTIMMUNG</th><th class="right">DETAILS</th></tr></thead><tbody id="node-table"></tbody></table></div>
           <div class="panel-footer"><span id="visible-count">0 Nodes</span><span>Identität: OpenNMS-Quelle + Node-ID → NetBox-Objekt</span></div>
         </div>

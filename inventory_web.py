@@ -244,6 +244,8 @@ class Application:
                 update = {'status': 'done', 'result': result}
             except (core.InventoryError, ValueError, KeyError, TypeError, OSError, sqlite3.Error) as exc:
                 update = {'status': 'failed', 'error': str(exc) if isinstance(exc, (core.InventoryError, ValueError)) else f'Aktion fehlgeschlagen ({type(exc).__name__}).'}
+                if isinstance(exc, manager.MappingConflict):
+                    update['conflicts'] = exc.conflicts
             except Exception:
                 traceback.print_exc()
                 update = {'status': 'failed', 'error': 'Interner Fehler. Details serverseitig prüfen.'}
@@ -290,7 +292,7 @@ def make_handler(app):
                 self.send(403, {'error': 'Ungültiger Host oder Origin.'})
                 return
             path = urlsplit(self.path).path
-            assets = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'application/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
+            assets = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'application/javascript; charset=utf-8'), '/mapping.js': ('mapping.js', 'application/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
             if path in assets:
                 name, kind = assets[path]
                 self.send(200, (ASSETS / name).read_bytes(), kind)
@@ -344,7 +346,7 @@ def main():
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         parser.error('--port must be between 1024 and 65535')
-    missing_assets = [name for name in ('index.html', 'style.css', 'app.js') if not (ASSETS / name).is_file()]
+    missing_assets = [name for name in ('index.html', 'style.css', 'mapping.js', 'app.js') if not (ASSETS / name).is_file()]
     if missing_assets:
         raise core.InventoryError('Web-Dateien fehlen. Bitte das gesamte Verzeichnis web neben inventory_web.py kopieren: ' + ', '.join(missing_assets))
     temporary = tempfile.TemporaryDirectory(prefix='inventory-web-demo-') if args.demo else None

@@ -30,4 +30,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check JavaScript syntax
         if: matrix.python-version == '3.12'
-        run: node --check web/app.js
+        run: |
+          node --check web/app.js
+          node --check web/mapping.js
+          node --test tests/test_mapping.cjs

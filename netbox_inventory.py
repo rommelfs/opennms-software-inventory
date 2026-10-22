@@ -211,35 +211,70 @@ def propose(db, client, config):
     return plan
 
 
+class MappingConflict(core.InventoryError):
+    def __init__(self, conflicts):
+        self.conflicts = conflicts
+        summary = ' '.join(item['message'] for item in conflicts[:5])
+        if len(conflicts) > 5:
+            summary += f' Weitere Konflikte: {len(conflicts) - 5}. Siehe markierte Zeilen.'
+        super().__init__('Keine Zuordnungen gespeichert. ' + summary)
+
+
+def node_description(row):
+    return f'{row.get("label") or "Ohne Namen"} (Node #{row["node_id"]}, {row.get("address") or "keine IP"}, Location {row.get("location") or "unbekannt"})'
+
+
 def confirm(db, client, config, plan, apply=False):
     if (plan.get('schema_version'), plan.get('source_id'), plan.get('netbox_url')) != (1, config['source_id'], endpoint(config)):
         raise core.InventoryError('Mapping plan belongs to a different source/NetBox endpoint')
     fresh = {row['node_id']: row for row in propose(db, client, config)['nodes']}
-    selected, seen_nodes, seen_targets = [], set(), set()
+    selected, seen_nodes, targets, conflicts = [], set(), {}, []
+    def conflict(code, row, message):
+        conflicts.append({'code': code, 'node_ids': [str(row['node_id'])],
+                          'message': node_description(row) + ': ' + message})
     for row in plan['nodes']:
         if row.get('approve') is not True:
             continue
         node = str(row['node_id'])
         if node in seen_nodes or node not in fresh or fresh[node]['synthetic']:
-            raise core.InventoryError('Invalid, duplicate, synthetic or no-longer-present node in mapping plan')
+            conflict('invalid_node', row, 'Node ist doppelt ausgewählt, synthetisch oder nicht mehr vorhanden. Bitte neu abgleichen.')
+            continue
         seen_nodes.add(node)
         latest = fresh[node]
-        for key in ('label', 'address', 'location', 'source_metadata'):
-            if row.get(key) != latest.get(key):
-                raise core.InventoryError('Host identity evidence changed; generate and review a new plan')
-        target = row['target']
+        if any(row.get(key) != latest.get(key) for key in ('label', 'address', 'location', 'source_metadata')):
+            conflict('host_changed', row, 'Hostdaten haben sich geändert. Bitte NetBox neu abgleichen und diese Auswahl prüfen.')
+            continue
+        target = row.get('target')
+        if (not isinstance(target, dict) or target.get('type') not in ('devices', 'virtual-machines')
+                or type(target.get('id')) is not int or target['id'] < 1):
+            conflict('invalid_target', row, 'Bitte ein gültiges Device oder eine VM auswählen.')
+            continue
         key = target_key(target)
-        if key in seen_targets or key not in {target_key(c) for c in latest['candidates']}:
-            raise core.InventoryError('Duplicate target or candidate no longer matches the live NetBox inventory')
+        targets.setdefault(key, []).append(row)
         original_candidates = {target_key(c): c for c in row.get('candidates', [])}
         current_candidates = {target_key(c): c for c in latest['candidates']}
-        if original_candidates.get(key) != current_candidates[key]:
-            raise core.InventoryError('NetBox candidate evidence changed; generate and review a new plan')
+        target_name = (original_candidates.get(key) or {}).get('name') or 'Ohne Namen'
+        description = f'{target_name} ({key[0]} #{key[1]})'
+        if key not in current_candidates:
+            conflict('candidate_missing', row, f'{description} passt aktuell nicht mehr zu Name, DNS oder IP im konfigurierten Scope, oder wurde entfernt. Bitte NetBox neu abgleichen.')
+            continue
         candidate = current_candidates[key]
         if candidate.get('identity_key') not in (None, '', f'{config["source_id"]}:{node}') or candidate.get('bound_node_id') not in (None, node) or candidate.get('bound_source_id') not in (None, config['source_id']):
-            raise core.InventoryError('Candidate is already bound to another source/node')
-        seen_targets.add(key)
+            owner = candidate.get('identity_key') or f'{candidate.get("bound_source_id")}:{candidate.get("bound_node_id")}'
+            conflict('target_occupied', row, f'{description} ist bereits mit {owner} verknüpft. Bitte ein anderes Ziel wählen.')
+            continue
+        if original_candidates.get(key) != current_candidates[key]:
+            conflict('candidate_changed', row, f'Die geprüften Daten von {description} haben sich geändert. Bitte NetBox neu abgleichen und diese Auswahl prüfen.')
+            continue
         selected.append(dict(latest, target={'type': key[0], 'id': key[1]}))
+    for key, rows in targets.items():
+        if len(rows) > 1:
+            candidate = next((c for c in rows[0].get('candidates', []) if target_key(c) == key), {})
+            conflicts.append({'code': 'duplicate_target', 'node_ids': [str(row['node_id']) for row in rows],
+                              'message': f'{candidate.get("name") or "Ohne Namen"} ({key[0]} #{key[1]}) wurde mehrfach gewählt: '
+                              + '; '.join(node_description(row) for row in rows) + '. Bitte nur den passenden Node auswählen oder unterschiedliche Ziele wählen.'})
+    if conflicts:
+        raise MappingConflict(conflicts)
     if not selected:
         raise core.InventoryError('No entries with approve=true selected')
     if apply:
