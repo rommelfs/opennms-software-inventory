@@ -16,6 +16,7 @@ import re
 import ssl
 import sqlite3
 import socketserver
+import stat
 import threading
 import subprocess
 import sys
@@ -296,18 +297,39 @@ class PasswordHandler(socketserver.BaseRequestHandler):
             pass
 
 
+def read_ssh_password(path):
+    """Read an explicitly supplied private file, never log its contents."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                    or info.st_mode & 0o077 or info.st_size > 4097):
+                raise InventoryError('SSH password file must be a regular private file owned by the current user (chmod 600)')
+            password = stream.read(4098).decode('utf-8')
+    except (OSError, UnicodeError):
+        raise InventoryError('Cannot read SSH password file; check path, ownership, permissions and UTF-8 encoding') from None
+    if password.endswith('\n'):
+        password = password[:-1]
+    if not password or len(password) > 4096 or any(c in password for c in '\r\n\x00'):
+        raise InventoryError('SSH password file must contain one nonempty line')
+    return password
+
+
 @contextmanager
-def ssh_session(config, interactive=False):
-    if not interactive:
+def ssh_session(config, interactive=False, password_file=None):
+    if interactive and password_file:
+        raise InventoryError('Choose interactive SSH or a password file, not both')
+    if not interactive and not password_file:
         yield
         return
-    if not sys.stdin.isatty():
+    if interactive and not sys.stdin.isatty():
         raise InventoryError("--ssh-interactive requires an interactive terminal")
-    password = getpass.getpass("OpenNMS SSH password (once for this run): ")
+    password = read_ssh_password(password_file) if password_file else getpass.getpass("OpenNMS SSH password (once for this run): ")
     if not password or len(password) > 4096 or any(c in password for c in "\r\n\x00"):
         raise InventoryError("Empty or unsupported SSH password")
     # A private local socket hands the in-memory password to OpenSSH's askpass
-    # helper. No password file, command-line argument or password env var.
+    # helper. No secret in helper files, command-line arguments or env vars.
     with tempfile.TemporaryDirectory(prefix="onms-", dir="/tmp") as directory:
         endpoint = str(Path(directory) / "password.sock")
         helper = Path(directory) / "askpass"
@@ -483,13 +505,13 @@ class NetBox:
 
 
 @contextmanager
-def collection_session(state, config, interactive):
+def collection_session(state, config, interactive, password_file=None):
     with (state / ".lock").open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise InventoryError("Another collection is using this state directory") from None
-        with History(state / "history.sqlite3") as history, ssh_session(config, interactive):
+        with History(state / "history.sqlite3") as history, ssh_session(config, interactive, password_file):
             yield history
 
 
@@ -500,7 +522,9 @@ def main():
     parser.add_argument("--check-config", action="store_true", help="Validate configuration without network access or credentials")
     parser.add_argument("--state", default="state")
     parser.add_argument("--timeout", type=int, default=180)
-    parser.add_argument("--ssh-interactive", action="store_true", help="Ask once for the SSH password and reuse it in memory for this run")
+    authentication = parser.add_mutually_exclusive_group()
+    authentication.add_argument("--ssh-interactive", action="store_true", help="Ask once for the SSH password and reuse it in memory for this run")
+    authentication.add_argument("--ssh-password-file", help="Read SSH password from a private file owned by the current user (unattended runs)")
     parser.add_argument("--save-walk-output", action="store_true", help="Save private raw walk output files for format diagnostics")
     parser.add_argument("--sync-netbox", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--apply", action="store_true", help=argparse.SUPPRESS)
@@ -524,7 +548,7 @@ def main():
     state.mkdir(parents=True, exist_ok=True)
     if args.save_walk_output:
         config["_walk_output_dir"] = str((state / "walk-output").resolve())
-    with collection_session(state, config, args.ssh_interactive and fixture is None) as history:
+    with collection_session(state, config, args.ssh_interactive and fixture is None, args.ssh_password_file if fixture is None else None) as history:
         report = {"schema_version": 2, "started_at": now(), "source_id": config["source_id"],
                   "synthetic": fixture is not None, "nodes": [], "enumeration": "failed"}
         try:

@@ -369,6 +369,30 @@ class ImportAndBindingSafetyTests(unittest.TestCase):
 
 
 class CliWorkflowTests(unittest.TestCase):
+    def test_scheduled_sync_skips_unbound_hosts_without_hiding_bound_host_errors(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            cfg = root / 'config.json'
+            core.save_json(cfg, config())
+            client = FakeNetBox()
+            manager.ensure_fields(client, config(), apply=True)
+            with History(root / 'state/opennms-lab/history.sqlite3') as db:
+                db.observation(snap())
+                db.observation(snap(node='43', label='new.example.org'))
+                plan = manager.propose(db, client, config())
+                plan['nodes'][0]['approve'] = True
+                manager.confirm(db, client, config(), plan, apply=True)
+            argv = ['netbox_inventory.py', '--config', str(cfg), '--state', str(root / 'state'), 'sync', '--confirmed-only', '--apply']
+            with patch.object(sys, 'argv', argv), patch.object(core, 'NetBox', return_value=client), redirect_stdout(io.StringIO()):
+                self.assertEqual(manager.main(), 0)
+                rows = core.load_json(root / 'state/opennms-lab/netbox-sync.json')['results']
+                self.assertEqual([row['action'] for row in rows], ['confirmed', 'skipped'])
+                self.assertEqual(rows[1]['reason'], 'no_confirmed_binding')
+                client.objects['devices'][0]['custom_fields'][config()['netbox']['identity_field']] = 'other:42'
+                self.assertEqual(manager.main(), 1)
+            with History(root / 'state/opennms-lab/history.sqlite3') as db:
+                self.assertIsNone(db.binding('opennms-lab', '43', manager.endpoint(config())))
+
     def test_existing_files_to_reviewed_binding_and_repeated_export(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

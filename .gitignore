@@ -4,6 +4,8 @@
 /.env
 /.env.*
 /secrets/
+/credentials.env
+/karaf-password
 /*.key
 /*.pem
 /*.crt

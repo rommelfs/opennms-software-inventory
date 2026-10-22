@@ -1,0 +1,15 @@
+[Unit]
+Description=Collect OpenNMS software inventory and sync confirmed NetBox bindings
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/opennms-software-inventory
+EnvironmentFile=/etc/opennms-software-inventory/credentials.env
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+StandardInput=null
+ExecStart=/usr/bin/python3 /opt/opennms-software-inventory/inventory_cycle.py --config /root/config.json --state /root/state --ssh-password-file /etc/opennms-software-inventory/karaf-password --apply
+TimeoutStartSec=infinity

@@ -127,13 +127,30 @@ python3 inventory.py --config /root/config.json --state /root/state --ssh-intera
 Das SSH-Passwort wird einmal pro Lauf abgefragt und nur im Arbeitsspeicher
 gehalten. Ein SNMP-Timeout wird protokolliert; die anderen Hosts laufen weiter.
 Unbeaufsichtigte Läufe benötigen einen geeigneten SSH-Zugang ohne interaktive
-Passwortabfrage. Eine Zeitplanung wird nicht automatisch installiert.
+Passwortabfrage. Mit `--ssh-password-file` ist auch bei älteren OpenNMS-Versionen
+ein geplanter Passwortzugang möglich. Die Datei bleibt außerhalb des Repositorys
+und muss ausschließlich dem ausführenden Benutzer gehören und für ihn lesbar sein
+(empfohlen `chmod 600`).
+
+## Periodische Erfassung und Export
+
+Der [systemd-Leitfaden](docs/automation.md) beschreibt die Einrichtung auf ccq
+mit OpenNMS 35.0.5. Vorbereitete Units unter `deploy/systemd/` starten täglich
+zwischen 02:00 und etwa 02:10 Uhr (Serverzeitzone). Sie werden erst aktiv, wenn
+du sie auf dem Server installierst und den Timer einschaltest.
+
+`inventory_cycle.py` erfasst alle OpenNMS-Nodes und synchronisiert anschließend
+ausschließlich bestehende bestätigte Bindings. Ohne `--apply` erstellt der
+Export eine Vorschau. Neue Nodes bleiben bis zur Zuordnung in der Weboberfläche
+ohne Export. Einzelne Hostfehler verhindern den Export erfolgreicher Ergebnisse
+nicht. Ein abgebrochener Gesamtlauf startet keinen Export.
 
 ## Dokumentation
 
 - [Weboberfläche, SSH-Tunnel, Kandidatenauswahl und Export](docs/web-ui.md)
 - [NetBox-Felder, Zuordnungsmodell, Historie und CLI](docs/netbox-setup.md)
 - [Betriebsdaten und Repository-Inhalte](docs/data-boundaries.md)
+- [Automatisierung, Passwortdatei und systemd-Timer](docs/automation.md)
 
 Die Erfassung zeigt **installierte Pakete**, keine vollständige Container-SBOM,
 keinen Nachweis tatsächlich laufender Prozesse und keine automatische
@@ -173,6 +190,7 @@ zusätzlich ohne geöffneten Netzwerksocket geprüft.
 | Datei | Aufgabe |
 |---|---|
 | `inventory.py` | OpenNMS-Discovery und SNMP-Erfassung |
+| `inventory_cycle.py` | Geplante Erfassung und Export bestätigter Zuordnungen |
 | `inventory_store.py` | SQLite-Historie und dauerhafte Bindings |
 | `netbox_inventory.py` | Import, Kandidaten, Freigabe und Export per CLI |
 | `inventory_web.py` | Lokale Weboberfläche und Operator-API |

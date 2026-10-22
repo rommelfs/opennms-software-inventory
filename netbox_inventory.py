@@ -357,6 +357,7 @@ def main():
     confirmation.add_argument('--apply', action='store_true')
     syncing = sub.add_parser('sync', help='Export latest observations through confirmed bindings')
     syncing.add_argument('--apply', action='store_true')
+    syncing.add_argument('--confirmed-only', action='store_true', help='Skip unbound nodes awaiting manual review (scheduled runs)')
     timeline = sub.add_parser('history', help='Show observed software version transitions')
     timeline.add_argument('--node', required=True)
     backup = sub.add_parser('backup', help='Create a consistent SQLite backup')
@@ -398,7 +399,11 @@ def main():
                     result, failed = [], False
                     for host in db.latest(config['source_id'], include_absent=True):
                         node = str(host['snapshot']['source']['node_id'])
-                        if not host['present'] and not db.binding(config['source_id'], node, endpoint(config)):
+                        binding = db.binding(config['source_id'], node, endpoint(config))
+                        if not binding and args.confirmed_only:
+                            result.append({'node_id': node, 'action': 'skipped', 'reason': 'no_confirmed_binding'})
+                            continue
+                        if not host['present'] and not binding:
                             continue
                         try:
                             item = sync_one(db, client, config, host, args.apply)
