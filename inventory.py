@@ -89,9 +89,9 @@ def validate_url(value):
 def validate_node(node):
     if not re.fullmatch(r"[1-9][0-9]*", str(node["node_id"])):
         raise InventoryError("Invalid OpenNMS node ID")
-    ipaddress.ip_address(node["address"])
     if not re.fullmatch(r"[0-9A-Fa-f:.]+", node["address"]):
         raise InventoryError("Use an IPv4 or IPv6 literal without a zone identifier")
+    ipaddress.ip_address(node["address"])
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_. /-]{0,199}", node["location"]):
         raise InventoryError("Location contains unsupported characters")
 
