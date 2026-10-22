@@ -325,7 +325,10 @@ def make_handler(app):
                 body = json.loads(self.rfile.read(size))
                 if not isinstance(body, dict):
                     raise core.InventoryError('Ungültige Anfrage.')
-                action = urlsplit(self.path).path.removeprefix('/api/')
+                path = urlsplit(self.path).path
+                if not path.startswith('/api/'):
+                    raise core.InventoryError('Unbekannte Aktion.')
+                action = path[len('/api/'):]
                 self.send(202, app.start_job(action, body))
             except (core.InventoryError, ValueError, TypeError) as exc:
                 self.send(409, {'error': str(exc)})

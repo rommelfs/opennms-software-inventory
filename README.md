@@ -14,7 +14,7 @@ Browserabnahme stehen noch aus. Die Anwendung erstellt oder löscht keine Assets
 
 ## Auf dem OpenNMS-Server installieren
 
-Voraussetzungen: Linux, Git, Python 3.10+ mit `sqlite3`, OpenSSH.
+Voraussetzungen: Linux, Git, Python 3.8+ mit `sqlite3`, OpenSSH.
 Keine zusätzlichen Python-Pakete, Node.js-Installation oder Container nötig.
 
 ```bash

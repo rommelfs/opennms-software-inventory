@@ -166,6 +166,13 @@ class WebTests(unittest.TestCase):
         self.assertIsNotNone(self.app.plan)
         self.assertTrue(all(method == 'GET' for method, _, _ in self.client.calls))
 
+    def test_post_outside_api_does_not_start_job(self):
+        for path in ('/refresh', '/other/api/refresh', '/api/'):
+            with self.subTest(path=path):
+                code, _, _ = self.request('POST', path, body={})
+                self.assertEqual(code, 409)
+                self.assertEqual(self.app.jobs, {})
+
     def test_second_mutation_cannot_run_while_first_is_active(self):
         release = threading.Event()
         with patch.object(self.app, 'refresh', side_effect=lambda: release.wait(5)):
