@@ -1,0 +1,9 @@
+{
+  "source_id": "opennms-ccq",
+  "ssh_target": "opennms-karaf",
+  "opennms": {
+    "url": "https://opennms.example.org/opennms",
+    "username_env": "OPENNMS_USERNAME",
+    "password_env": "OPENNMS_PASSWORD"
+  }
+}

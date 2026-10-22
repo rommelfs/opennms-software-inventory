@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "started_at": "2026-10-21T20:31:18.296294+00:00",
+  "source_id": "opennms-lab",
+  "synthetic": true,
+  "nodes": [
+    {
+      "attempted_at": "2026-10-21T20:31:18.296401+00:00",
+      "node_id": "42",
+      "label": "linux-core.example.invalid",
+      "location": "Default",
+      "address": "192.0.2.42",
+      "collection": "complete",
+      "observed_at": "2026-10-21T20:31:18.296547+00:00",
+      "count": 5,
+      "snapshot_file": "linux-core.example.invalid--node-42.json"
+    },
+    {
+      "attempted_at": "2026-10-21T20:31:18.297123+00:00",
+      "node_id": "43",
+      "label": "linux-branch.example.invalid",
+      "location": "Branch Berlin",
+      "address": "192.0.2.43",
+      "collection": "complete",
+      "observed_at": "2026-10-21T20:31:18.297168+00:00",
+      "count": 5,
+      "snapshot_file": "linux-branch.example.invalid--node-43.json"
+    },
+    {
+      "attempted_at": "2026-10-21T20:31:18.297566+00:00",
+      "node_id": "44",
+      "label": "no-snmp.example.invalid",
+      "location": "Default",
+      "collection": "skipped",
+      "reason": "no_primary_snmp_interface"
+    }
+  ],
+  "enumeration": "complete",
+  "finished_at": "2026-10-21T20:31:18.298130+00:00",
+  "discovered": 3,
+  "collected": 2,
+  "skipped": 1,
+  "errors": 0
+}

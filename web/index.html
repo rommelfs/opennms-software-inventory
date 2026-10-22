@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory · OpenNMS / NetBox</title>
+<link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/" aria-label="Inventory"><span class="brandmark">i<span>ı</span></span><span>inventory<span class="brand-sub">OpenNMS → NetBox</span></span></a>
+  <div class="nav-caption">ARBEITSBEREICH</div>
+  <nav aria-label="Hauptnavigation">
+    <button class="nav-item active" data-page="mapping"><span class="nav-icon">⇄</span><span>Zuordnungen</span></button>
+    <button class="nav-item" data-page="software"><span class="nav-icon">▤</span><span>Software & Historie</span></button>
+    <button class="nav-item" data-page="export"><span class="nav-icon">↗</span><span>NetBox-Export</span></button>
+  </nav>
+  <div class="sidebar-bottom"><span class="connection-dot"></span><span>Lokaler Arbeitsbereich<small id="source-sidebar">OpenNMS</small></span><span class="version">3.1</span></div>
+</aside>
+<div class="workspace">
+  <header class="topbar"><div><span class="breadcrumb">Inventar</span><span class="crumb-slash">/</span><span id="breadcrumb-current">Zuordnungen</span></div><div class="topbar-right"><span class="chip neutral" id="mode-badge">LOKAL</span><span class="small" id="endpoint-label">NetBox</span></div></header>
+  <main>
+    <div id="auth-panel" class="auth-panel hidden"><span class="eyebrow">ZUGANG ZUM ARBEITSBEREICH</span><h1>Zugangslink öffnen</h1><p>Verwende den vollständigen Link, der beim Start von inventory_web.py auf dem Server ausgegeben wird. Er enthält den Zugang für diese Sitzung.</p><form id="auth-form"><label for="token">Sitzungstoken</label><input id="token" type="password" autocomplete="off" required><button class="button primary" type="submit">Arbeitsbereich öffnen</button></form></div>
+    <section id="app-panel">
+      <div class="page-heading"><div><span class="eyebrow">OPENNMS / NETBOX</span><h1 id="page-title">Hosts sicher zuordnen<span class="accent">.</span></h1><p id="page-description">Das richtige Ziel für jeden Node. Namen, DNS und IP-Adressen im direkten Vergleich.</p></div><button class="button" id="import-button"><span>↻</span> Erfassung einlesen</button></div>
+      <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+      <div class="stats" id="stats"></div>
+      <div id="mapping-page">
+        <div class="workflow-note"><span class="step-circle">1</span><span>Kandidaten abgleichen</span><span class="step-line"></span><span class="step-circle">2</span><span>Zuordnungen prüfen</span><span class="step-line"></span><span class="step-circle">3</span><span>Lokal bestätigen</span><span class="workflow-end">NetBox bleibt dabei unverändert.</span></div>
+        <div class="panel">
+          <div class="panel-heading"><div><h2>OpenNMS-Nodes <span id="node-total" class="count-badge">0</span></h2><p id="matched-at">NetBox noch nicht abgeglichen</p></div><button class="button primary" id="refresh-button"><span>⇄</span> NetBox abgleichen</button></div>
+          <div class="table-toolbar"><div class="search"><span>⌕</span><input id="search" type="search" aria-label="Nodes und Kandidaten durchsuchen" placeholder="Node, IP oder NetBox-Kandidat suchen …"></div><select id="filter" aria-label="Zuordnungsstatus filtern"><option value="all">Alle Nodes</option><option value="open">Noch offen</option><option value="clear">Eindeutige Treffer</option><option value="ambiguous">Mehrere Kandidaten</option><option value="missing">Ohne Kandidat</option><option value="bound">Bestätigt</option></select><button class="button subtle" id="select-clear">Eindeutige auswählen</button></div>
+          <div class="table-scroll"><table><thead><tr><th class="check-col"><span class="sr-only">Auswahl</span></th><th>OPENNMS-NODE</th><th>LOCATION</th><th>NETBOX-KANDIDAT</th><th>ÜBEREINSTIMMUNG</th><th class="right">DETAILS</th></tr></thead><tbody id="node-table"></tbody></table></div>
+          <div class="panel-footer"><span id="visible-count">0 Nodes</span><span>Identität: OpenNMS-Quelle + Node-ID → NetBox-Objekt</span></div>
+        </div>
+        <div class="selection-bar"><div><strong id="selected-count">Keine Auswahl</strong><span>Nur ausgewählte Zuordnungen werden gespeichert.</span></div><button class="button primary" id="save-button" disabled>Auswahl bestätigen <span>→</span></button></div>
+      </div>
+      <div id="software-page" class="hidden panel"><div class="panel-heading"><div><h2>Software & Beobachtungen</h2><p>Letzter erfolgreicher Stand und Versionsübergänge pro Node.</p></div></div><div class="table-scroll"><table><thead><tr><th>NODE</th><th>LOCATION</th><th>PAKETE</th><th>LETZTE BEOBACHTUNG</th><th>ERFASSUNG</th><th></th></tr></thead><tbody id="software-table"></tbody></table></div></div>
+      <div id="export-page" class="hidden panel"><div class="panel-heading"><div><h2>Bestätigte Zuordnungen synchronisieren</h2><p>Vorschau lesen, Änderungen prüfen und gezielt nach NetBox schreiben.</p></div><button class="button primary" id="preview-button">Exportvorschau erstellen</button></div><div class="export-intro"><span class="chip neutral">BESTEHENDE ASSETS</span><p>Der Export schreibt ausschließlich die Inventarfelder an bereits bestätigten Devices und VMs. Ein fehlgeschlagener Scan ersetzt keinen erfolgreichen Paketstand.</p></div><div id="export-results" class="empty"><span class="empty-symbol">↗</span><h3>Änderungen zuerst ansehen</h3><p>Erstelle eine Vorschau für die bestätigten Zuordnungen.</p></div><div class="panel-footer export-footer"><span id="export-caption">Noch keine Vorschau vorhanden</span><button id="apply-button" class="button primary" disabled>Änderungen nach NetBox schreiben</button></div></div>
+      <footer class="main-footer"><span>OpenNMS erfasst. NetBox verknüpft. Die Historie bleibt lokal.</span><span>Inventory 3.1</span></footer>
+    </section>
+  </main>
+</div>
+<dialog id="confirm-dialog"><div class="dialog-body"><span class="eyebrow" id="confirm-eyebrow">ZUORDNUNGEN SPEICHERN</span><h2 id="confirm-title">Auswahl bestätigen</h2><p id="confirm-description"></p><div class="dialog-actions"><button class="button" id="cancel-confirm">Zurück</button><button class="button primary" id="accept-confirm">Bestätigen</button></div></div></dialog>
+<dialog id="detail-dialog" class="detail-dialog"><div class="detail-heading"><div><span class="eyebrow" id="detail-node-id">NODE</span><h2 id="detail-title">Softwarestand</h2><p id="detail-subtitle"></p></div><button class="icon-button" id="close-detail" aria-label="Details schließen">×</button></div><div class="detail-tabs"><button data-detail="packages" class="active">Installierte Software</button><button data-detail="timeline">Versionshistorie</button></div><div id="detail-content"></div></dialog>
+</body></html>

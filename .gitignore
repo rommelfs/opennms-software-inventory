@@ -1,0 +1,28 @@
+# Operational configuration, credentials and local overrides
+/config.json
+/config.*.json
+/.env
+/.env.*
+/secrets/
+/*.key
+/*.pem
+/*.crt
+# Inventory data and review plans stay outside source control
+/state/
+/demo-state/
+/mapping*.json
+/walk-output/
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.sqlite-*
+*.db
+*.db-*
+*.log
+# Python and desktop output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.DS_Store
+*.zip

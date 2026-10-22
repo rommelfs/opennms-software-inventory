@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "source": {
+    "system": "opennms",
+    "id": "opennms-lab",
+    "node_id": "42",
+    "location": "Default",
+    "address": "192.0.2.42",
+    "oid": "1.3.6.1.2.1.25.6.3.1.2"
+  },
+  "target": null,
+  "host": {
+    "label": "linux-core.example.invalid",
+    "foreign_source": "Servers",
+    "foreign_id": "core42",
+    "sys_description": "Linux"
+  },
+  "started_at": "2026-10-21T20:31:18.296401+00:00",
+  "observed_at": "2026-10-21T20:31:18.296547+00:00",
+  "collection_status": "complete_nonempty",
+  "content_sha256": "6de28b228ca3a3d59edd752ec160b29952080182f828dbb220cd3eb4e85d5e66",
+  "software": [
+    {
+      "raw": "custom-service-with-unknown-version",
+      "name": "custom-service-with-unknown-version",
+      "version": null,
+      "architecture": null,
+      "parser": "unparsed",
+      "observation": "installed"
+    },
+    {
+      "raw": "nginx_1.24.0-2ubuntu7_amd64",
+      "name": "nginx",
+      "version": "1.24.0-2ubuntu7",
+      "architecture": "amd64",
+      "parser": "debian-name_version_arch",
+      "observation": "installed"
+    },
+    {
+      "raw": "php8.3-common_8.3.6-0ubuntu0.24.04.13_amd64",
+      "name": "php8.3-common",
+      "version": "8.3.6-0ubuntu0.24.04.13",
+      "architecture": "amd64",
+      "parser": "debian-name_version_arch",
+      "observation": "installed"
+    },
+    {
+      "raw": "php8.3-fpm_8.3.6-0ubuntu0.24.04.13_amd64",
+      "name": "php8.3-fpm",
+      "version": "8.3.6-0ubuntu0.24.04.13",
+      "architecture": "amd64",
+      "parser": "debian-name_version_arch",
+      "observation": "installed"
+    },
+    {
+      "raw": "postgresql-16_16.4-0ubuntu0.24.04.2_amd64",
+      "name": "postgresql-16",
+      "version": "16.4-0ubuntu0.24.04.2",
+      "architecture": "amd64",
+      "parser": "debian-name_version_arch",
+      "observation": "installed"
+    }
+  ],
+  "synthetic": true
+}

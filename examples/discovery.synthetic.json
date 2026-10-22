@@ -1,0 +1,48 @@
+{
+  "synthetic": true,
+  "nodes": [
+    {
+      "id": "42",
+      "label": "linux-core.example.invalid",
+      "location": "Default",
+      "foreignSource": "Servers",
+      "foreignId": "core42",
+      "sysDescription": "Linux"
+    },
+    {
+      "id": "43",
+      "label": "linux-branch.example.invalid",
+      "location": "Branch Berlin",
+      "foreignSource": "Servers",
+      "foreignId": "branch43",
+      "sysDescription": "Linux"
+    },
+    {
+      "id": "44",
+      "label": "no-snmp.example.invalid",
+      "location": "Default",
+      "sysDescription": null
+    }
+  ],
+  "interfaces": {
+    "42": [
+      {
+        "id": "142",
+        "ipAddress": "192.0.2.42",
+        "snmpPrimary": "P"
+      }
+    ],
+    "43": [
+      {
+        "id": "143",
+        "ipAddress": "192.0.2.43",
+        "snmpPrimary": "P"
+      }
+    ],
+    "44": []
+  },
+  "walks": {
+    "42": "..[1.3.6.1.2.1.25.6.3.1.2].[1] = php8.3-fpm_8.3.6-0ubuntu0.24.04.13_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[2] = php8.3-common_8.3.6-0ubuntu0.24.04.13_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[3] = nginx_1.24.0-2ubuntu7_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[4] = postgresql-16_16.4-0ubuntu0.24.04.2_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[5] = custom-service-with-unknown-version\n",
+    "43": "..[1.3.6.1.2.1.25.6.3.1.2].[1] = php8.3-fpm_8.3.6-0ubuntu0.24.04.13_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[2] = php8.3-common_8.3.6-0ubuntu0.24.04.13_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[3] = nginx_1.24.0-2ubuntu7_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[4] = postgresql-16_16.4-0ubuntu0.24.04.2_amd64\n[1.3.6.1.2.1.25.6.3.1.2].[5] = custom-service-with-unknown-version\n"
+  }
+}
