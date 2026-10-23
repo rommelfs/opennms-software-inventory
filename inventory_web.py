@@ -72,7 +72,7 @@ class Application:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
-                raise core.InventoryError('Die Erfassung oder ein anderer Abgleich läuft. Bitte danach erneut versuchen.') from None
+                raise core.InventoryError('Collection or another matching operation is running. Please try again when it finishes.') from None
             with History(self.state / 'history.sqlite3') as db:
                 return operation(db)
 
@@ -110,49 +110,49 @@ class Application:
 
     def refresh(self):
         if 'netbox' not in self.config:
-            raise core.InventoryError('Bitte den NetBox-Abschnitt in config.json auf dem Server ergänzen.')
+            raise core.InventoryError('Please add the NetBox section to config.json on the server.')
         plan = self.locked(lambda db: manager.propose(db, self.client_factory(), self.config))
         with self.data_lock:
             self.plan = plan
-        return {'nodes': len(plan['nodes']), 'message': 'NetBox-Kandidaten aktualisiert. NetBox wurde nur gelesen.'}
+        return {'nodes': len(plan['nodes']), 'message': 'NetBox candidates refreshed. NetBox was only read.'}
 
     def import_files(self):
         if self.demo:
-            return {'message': 'Die Demo-Daten sind bereits eingelesen.'}
+            return {'message': 'The demo data has already been imported.'}
         result = self.locked(lambda db: manager.import_existing(db, self.config, self.state))
         self.startup_message = None
         with self.data_lock:
             self.plan = None
             self.sync_preview = None
-        return dict(result, message='Vorhandene Erfassungen eingelesen. Kandidaten bitte neu abgleichen.')
+        return dict(result, message='Existing collection results imported. Please refresh the candidates.')
 
     def save_bindings(self, selections):
         if self.demo:
-            raise core.InventoryError('Die Demo speichert keine Zuordnungen. Auswahl und Kandidaten können angesehen werden.')
+            raise core.InventoryError('The demo does not save mappings. You can review selections and candidates.')
         with self.data_lock:
             if self.plan is None:
-                raise core.InventoryError('Bitte zuerst NetBox abgleichen.')
+                raise core.InventoryError('Please refresh NetBox candidates first.')
             plan = copy.deepcopy(self.plan)
         if not isinstance(selections, list) or not selections or len(selections) > 10000:
-            raise core.InventoryError('Bitte mindestens eine Zuordnung auswählen.')
+            raise core.InventoryError('Please select at least one mapping.')
         chosen = {}
         for selection in selections:
             node = str(selection.get('node_id', ''))
             if node in chosen:
-                raise core.InventoryError('Ein Node wurde mehrfach ausgewählt.')
+                raise core.InventoryError('A node was selected more than once.')
             chosen[node] = selection.get('target')
         found = set()
         for row in plan['nodes']:
             row['approve'] = row['node_id'] in chosen
             if row['approve']:
                 if row['existing_binding']:
-                    raise core.InventoryError('Bestehende Zuordnungen werden nicht umgebunden.')
+                    raise core.InventoryError('Existing mappings cannot be reassigned.')
                 row['target'] = chosen[row['node_id']]
                 if not isinstance(row['target'], dict) or not any(manager.target_key(c) == manager.target_key(row['target']) for c in row['candidates']):
-                    raise core.InventoryError('Das ausgewählte Ziel gehört nicht zu den angezeigten Kandidaten.')
+                    raise core.InventoryError('The selected target is not among the displayed candidates.')
                 found.add(row['node_id'])
         if found != set(chosen):
-            raise core.InventoryError('Ein ausgewählter Node ist nicht mehr in der Vorschau.')
+            raise core.InventoryError('A selected node is no longer in the preview.')
         result = self.locked(lambda db: manager.confirm(db, self.client_factory(), self.config, plan, apply=True))
         with self.data_lock:
             self.sync_preview = None
@@ -165,31 +165,31 @@ class Application:
                             candidate['bound_node_id'] = owner
                             candidate['bound_source_id'] = self.config['source_id']
         # Keep the read-only candidate snapshot for the remaining nodes.
-        return dict(result, message=f'{result["bindings"]} Zuordnung(en) lokal gespeichert. NetBox wurde nicht verändert.')
+        return dict(result, message=f'{result["bindings"]} mapping(s) saved locally. NetBox is unchanged.')
 
     def node_detail(self, node):
         if not re.fullmatch(r'[1-9][0-9]*', node):
-            raise core.InventoryError('Ungültige Node-ID.')
+            raise core.InventoryError('Invalid node ID.')
         with History(self.state / 'history.sqlite3') as db:
             host = next((h for h in db.latest(self.config['source_id'], include_absent=True, node=node) if str(h['snapshot']['source']['node_id']) == node), None)
             if not host:
-                raise core.InventoryError('Für diesen Node gibt es noch keinen erfolgreichen Softwarestand.')
+                raise core.InventoryError('There is no successful software observation for this node yet.')
             return {'snapshot': host['snapshot'], 'status': host['status'], 'timeline': db.timeline(self.config['source_id'], node)}
 
     def sync(self, apply=False, preview_id=None):
         if self.demo:
-            raise core.InventoryError('Die Demo führt keinen NetBox-Export aus.')
+            raise core.InventoryError('The demo does not export to NetBox.')
         if 'netbox' not in self.config:
-            raise core.InventoryError('Bitte NetBox in config.json konfigurieren.')
+            raise core.InventoryError('Please configure NetBox in config.json.')
         with self.data_lock:
             previous_preview = copy.deepcopy(self.sync_preview)
         if apply and (not previous_preview or not preview_id or previous_preview['id'] != preview_id):
-            raise core.InventoryError('Bitte zuerst eine aktuelle Exportvorschau erstellen.')
+            raise core.InventoryError('Please create a current export preview first.')
         def run(db):
             client = self.client_factory()
             missing = [row['name'] for row in manager.ensure_fields(client, self.config) if row['action'] != 'exists']
             if missing:
-                raise core.InventoryError('NetBox-Felder fehlen. Einmalig setup-fields im CLI ausführen; siehe Anleitung.')
+                raise core.InventoryError('NetBox fields are missing. Run setup-fields in the CLI once; see the documentation.')
             results = []
             hosts = [host for host in db.latest(self.config['source_id'], include_absent=True)
                      if db.binding(self.config['source_id'], str(host['snapshot']['source']['node_id']), manager.endpoint(self.config))]
@@ -199,18 +199,18 @@ class Application:
                            for host in hosts]
             if apply:
                 if any(row['action'] == 'failed' for row in previous_preview['results']):
-                    raise core.InventoryError('Die Vorschau enthält Fehler. Bitte diese zuerst beheben und erneut prüfen.')
+                    raise core.InventoryError('The preview contains errors. Please resolve them and create a new preview.')
                 if fingerprint != previous_preview['fingerprint']:
-                    raise core.InventoryError('Erfassung oder Zuordnungen haben sich geändert. Bitte Vorschau neu erstellen.')
+                    raise core.InventoryError('Collection results or mappings have changed. Please create a new preview.')
                 refreshed = []
                 for host in hosts:
                     node = str(host['snapshot']['source']['node_id'])
                     try:
                         refreshed.append(manager.sync_one(db, client, self.config, host, apply=False))
                     except (core.InventoryError, ValueError, KeyError, TypeError, OSError):
-                        raise core.InventoryError('NetBox-Zustand hat sich geändert. Bitte Vorschau neu erstellen.') from None
+                        raise core.InventoryError('The NetBox state has changed. Please create a new preview.') from None
                 if refreshed != previous_preview['results']:
-                    raise core.InventoryError('NetBox-Zustand hat sich geändert. Bitte Vorschau neu erstellen.')
+                    raise core.InventoryError('The NetBox state has changed. Please create a new preview.')
             for host in hosts:
                 node = str(host['snapshot']['source']['node_id'])
                 try:
@@ -223,7 +223,7 @@ class Application:
             ticket = None if apply else secrets.token_urlsafe(24)
             with self.data_lock:
                 self.sync_preview = None if apply else {'id': ticket, 'fingerprint': fingerprint, 'results': copy.deepcopy(results)}
-            return {'results': results, 'preview_id': ticket, 'apply': apply, 'message': 'Export abgeschlossen.' if apply else 'Exportvorschau erstellt. NetBox wurde nur gelesen.'}
+            return {'results': results, 'preview_id': ticket, 'apply': apply, 'message': 'Export completed.' if apply else 'Export preview created. NetBox was only read.'}
         return self.locked(run)
 
     def start_job(self, action, body):
@@ -231,10 +231,10 @@ class Application:
                      'bind': lambda: self.save_bindings(body.get('selections')),
                      'sync-preview': lambda: self.sync(False), 'sync-apply': lambda: self.sync(True, body.get('preview_id'))}
         if action not in functions:
-            raise core.InventoryError('Unbekannte Aktion.')
+            raise core.InventoryError('Unknown action.')
         with self.job_lock:
             if self.active and self.jobs[self.active]['status'] == 'running':
-                raise core.InventoryError('Eine Aktion läuft bereits. Bitte warten.')
+                raise core.InventoryError('An operation is already running. Please wait.')
             identity = secrets.token_hex(12)
             self.jobs[identity] = {'id': identity, 'action': action, 'status': 'running'}
             self.active = identity
@@ -243,12 +243,12 @@ class Application:
                 result = functions[action]()
                 update = {'status': 'done', 'result': result}
             except (core.InventoryError, ValueError, KeyError, TypeError, OSError, sqlite3.Error) as exc:
-                update = {'status': 'failed', 'error': str(exc) if isinstance(exc, (core.InventoryError, ValueError)) else f'Aktion fehlgeschlagen ({type(exc).__name__}).'}
+                update = {'status': 'failed', 'error': str(exc) if isinstance(exc, (core.InventoryError, ValueError)) else f'Operation failed ({type(exc).__name__}).'}
                 if isinstance(exc, manager.MappingConflict):
                     update['conflicts'] = exc.conflicts
             except Exception:
                 traceback.print_exc()
-                update = {'status': 'failed', 'error': 'Interner Fehler. Details serverseitig prüfen.'}
+                update = {'status': 'failed', 'error': 'Internal error. Check the server logs for details.'}
             with self.job_lock:
                 self.jobs[identity].update(update)
                 if len(self.jobs) > 50:
@@ -289,7 +289,7 @@ def make_handler(app):
 
         def do_GET(self):
             if not self.permitted_host():
-                self.send(403, {'error': 'Ungültiger Host oder Origin.'})
+                self.send(403, {'error': 'Invalid Host or Origin.'})
                 return
             path = urlsplit(self.path).path
             assets = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'application/javascript; charset=utf-8'), '/mapping.js': ('mapping.js', 'application/javascript; charset=utf-8'), '/style.css': ('style.css', 'text/css; charset=utf-8')}
@@ -298,7 +298,7 @@ def make_handler(app):
                 self.send(200, (ASSETS / name).read_bytes(), kind)
                 return
             if not self.authorized():
-                self.send(401, {'error': 'Bitte den beim Serverstart ausgegebenen Zugangslink öffnen.'})
+                self.send(401, {'error': 'Please open the access link printed when the server started.'})
                 return
             try:
                 if path == '/api/state':
@@ -308,28 +308,28 @@ def make_handler(app):
                 elif path.startswith('/api/jobs/'):
                     with app.job_lock:
                         job = copy.deepcopy(app.jobs.get(path.rsplit('/', 1)[1]))
-                    self.send(200 if job else 404, job or {'error': 'Auftrag nicht gefunden.'})
+                    self.send(200 if job else 404, job or {'error': 'Job not found.'})
                 else:
-                    self.send(404, {'error': 'Nicht gefunden.'})
+                    self.send(404, {'error': 'Not found.'})
             except (core.InventoryError, ValueError, sqlite3.Error) as exc:
                 self.send(409, {'error': str(exc)})
 
         def do_POST(self):
             if not self.authorized():
-                self.send(403, {'error': 'Zugriff verweigert.'})
+                self.send(403, {'error': 'Access denied.'})
                 return
             try:
                 if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
-                    raise core.InventoryError('JSON wird erwartet.')
+                    raise core.InventoryError('Expected JSON.')
                 size = int(self.headers.get('Content-Length', '0'))
                 if not 0 < size <= 1024 * 1024:
-                    raise core.InventoryError('Ungültige Anfragegröße.')
+                    raise core.InventoryError('Invalid request size.')
                 body = json.loads(self.rfile.read(size))
                 if not isinstance(body, dict):
-                    raise core.InventoryError('Ungültige Anfrage.')
+                    raise core.InventoryError('Invalid request.')
                 path = urlsplit(self.path).path
                 if not path.startswith('/api/'):
-                    raise core.InventoryError('Unbekannte Aktion.')
+                    raise core.InventoryError('Unknown action.')
                 action = path[len('/api/'):]
                 self.send(202, app.start_job(action, body))
             except (core.InventoryError, ValueError, TypeError) as exc:
@@ -348,7 +348,7 @@ def main():
         parser.error('--port must be between 1024 and 65535')
     missing_assets = [name for name in ('index.html', 'style.css', 'mapping.js', 'app.js') if not (ASSETS / name).is_file()]
     if missing_assets:
-        raise core.InventoryError('Web-Dateien fehlen. Bitte das gesamte Verzeichnis web neben inventory_web.py kopieren: ' + ', '.join(missing_assets))
+        raise core.InventoryError('Web files are missing. Please copy the entire web directory next to inventory_web.py: ' + ', '.join(missing_assets))
     temporary = tempfile.TemporaryDirectory(prefix='inventory-web-demo-') if args.demo else None
     try:
         if args.demo:
@@ -365,10 +365,10 @@ def main():
                     app.import_files()
                 except (core.InventoryError, ValueError) as exc:
                     app.startup_message = str(exc)
-                    print('Import beim Start zurückgestellt: ' + str(exc), file=sys.stderr)
+                    print('Startup import deferred: ' + str(exc), file=sys.stderr)
         server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(app))
         print(f'Inventory Web 3.1: http://127.0.0.1:{args.port}/#token={app.token}', flush=True)
-        print('Auf ccq starten; im SSH-Tunnel denselben lokalen Port verwenden. Ctrl+C beendet die Oberfläche.', flush=True)
+        print('Run on the OpenNMS server and use the same local port in the SSH tunnel. Press Ctrl+C to stop the web interface.', flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

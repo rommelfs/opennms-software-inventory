@@ -6,7 +6,7 @@
       if (!selected.has(row.node_id)) continue;
       const candidate = row.candidates.find(c => c.type + ':' + c.id === choices.get(row.node_id));
       if (!candidate) {
-        conflicts.push({code:'candidate_missing', node_ids:[row.node_id], message:(row.label || 'Node #' + row.node_id) + ': Bitte einen aktuellen Kandidaten auswählen.'});
+        conflicts.push({code:'candidate_missing', node_ids:[row.node_id], message:(row.label || 'Node #' + row.node_id) + ': Please select a current candidate.'});
         continue;
       }
       const key = candidate.type + ':' + candidate.id;
@@ -15,9 +15,9 @@
     }
     for (const {candidate, rows} of targets.values()) {
       if (rows.length < 2) continue;
-      const hosts = rows.map(row => (row.label || 'Ohne Namen') + ' (#' + row.node_id + ')').join(', ');
+      const hosts = rows.map(row => (row.label || 'Unnamed') + ' (#' + row.node_id + ')').join(', ');
       conflicts.push({code:'duplicate_target', node_ids:rows.map(row => row.node_id),
-        message:candidate.name + ' (' + candidate.type + ' #' + candidate.id + ') ist mehrfach ausgewählt: ' + hosts + '. Nur einen Node auswählen oder unterschiedliche Ziele wählen.'});
+        message:candidate.name + ' (' + candidate.type + ' #' + candidate.id + ') is selected more than once: ' + hosts + '. Select only one node or choose different targets.'});
     }
     return conflicts;
   }

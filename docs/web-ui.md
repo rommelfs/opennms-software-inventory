@@ -1,183 +1,192 @@
-Inventory Web 3.1 – Zuordnungen im Browser statt mapping.json bearbeiten
-======================================================================
+# Inventory Web 3.1: review mappings in your browser
 
-Die Oberfläche läuft auf dem OpenNMS-Server neben den bisherigen Werkzeugen.
-Sie liest dieselbe config.json und dieselbe SQLite-Historie. Keine zusätzlichen
-Python-Pakete, kein Frontend-Build und keine externen JavaScript-/Font-Dienste.
+The web interface runs alongside the existing tools on the OpenNMS server.
+It uses the same `config.json` and SQLite history. It needs no additional Python
+packages, frontend build or external JavaScript/font services.
 
-1. Mit Git installieren
-------------------------
-Installation und Updates sind in der [README](../README.md) beschrieben.
-Den Checkout vollständig klonen; das Verzeichnis web gehört zur Anwendung.
-Konfiguration und Inventardaten bleiben außerhalb des Checkouts.
+## 1. Install with Git
 
-2. Oberfläche starten
----------------------
-Den NetBox-Token wie für das CLI in NETBOX_TOKEN bereitstellen, oder die in
-config.json benannte Token-Umgebungsvariable verwenden. Er bleibt auf dem Server.
-Die OpenNMS-API-/SSH-Zugangsdaten braucht die Oberfläche selbst nicht:
-Sie arbeitet mit bereits erhobenen Inventardaten.
+See the [README](../README.md) for installation and updates. Clone the complete
+checkout: the `web` directory is part of the application. Keep configuration
+and inventory data outside the checkout.
 
-  python3 inventory_web.py --config config.json --state ./state
+## 2. Start the interface
 
-Beim Start werden vorhandene Ergebnisse importiert, soweit die lokale Sperre
-frei ist. Bei laufender Erfassung oder einem zurückgestellten Import bleibt die
-Oberfläche verfügbar und zeigt einen Hinweis. Nach Ende der Erfassung
-„Erfassung einlesen“ verwenden. Neuere Collector-Versionen schreiben bereits
-direkt in die SQLite-Historie; der Import ist wiederholbar und dedupliziert.
+Provide the NetBox token through `NETBOX_TOKEN`, as for the CLI, or through the
+token environment variable named in `config.json`. The token stays on the server.
+The web interface itself does not need OpenNMS API or SSH credentials; it works
+with already collected inventory data.
 
-Die Konsole gibt einen Link dieser Form aus:
+```bash
+python3 inventory_web.py --config config.json --state ./state
+```
 
-  http://127.0.0.1:8765/#token=<Sitzungstoken>
+On startup, existing results are imported if the local lock is available. If a
+collector is running or an import is deferred, the interface remains available
+and displays a notice. Use **Import results** once collection finishes. Current
+collector versions write directly to SQLite; importing again is safe and deduplicated.
 
-Der Server bindet ausschließlich an 127.0.0.1, nicht an eine öffentliche Adresse.
-Er läuft im Vordergrund; Ctrl+C beendet ihn. Ein Neustart erzeugt einen neuen
-Zugangslink, ohne die Inventardaten oder Bindings zu verlieren.
+The console prints a link in this format:
 
-3. Auf deinem Rechner per SSH-Tunnel öffnen
-------------------------------------------
-In einem zweiten Terminal auf DEINEM Rechner, nicht auf ccq:
+```text
+http://127.0.0.1:8765/#token=<session-token>
+```
 
-  ssh -N -L 8765:127.0.0.1:8765 root@ccq
+The server binds only to `127.0.0.1`, not to a public address. It runs in the
+foreground; press `Ctrl+C` to stop it. A restart creates a new access link without
+losing inventory data or bindings.
 
-Statt root@ccq kannst du deinen üblichen SSH-Zugang/Alias zum OpenNMS-Server
-verwenden. Dies ist der normale Server-SSH-Zugang (typischerweise Port 22),
-nicht die Karaf-Verbindung auf Port 8101.
+## 3. Open an SSH tunnel from your workstation
 
-Danach den vollständigen Konsolenlink mit #token=... im Browser deines Rechners
-öffnen. Falls Port 8765 bereits belegt ist, die Oberfläche mit --port 8766
-starten und im Tunnel auf beiden Seiten denselben Port 8766 verwenden.
-Host-/Origin-Prüfung erwartet denselben Port am Browser und am Server.
+In a second terminal on **your workstation**, not on ccq:
 
-Der Sitzungstoken autorisiert den lokalen Arbeitsbereich. Er wird nicht als
-URL-Query an den Server gesendet; der Browser übernimmt ihn aus dem Fragment und
-verwendet ihn für die API. Die Daten-API verlangt ihn für jeden Aufruf.
-NetBox-Token, API-Passwörter und SSH-Passwörter werden nicht zum Browser geschickt.
-Der Zugang ist für einen Operator über den SSH-Tunnel gedacht, nicht als
-öffentlich erreichbarer Mehrbenutzerdienst.
+```bash
+ssh -N -L 8765:127.0.0.1:8765 root@ccq
+```
 
-4. Zuordnen ohne JSON-Datei
---------------------------
-- „NetBox abgleichen“: liest Devices, VMs und zugewiesene IP-Adressen vollständig
-  aus NetBox und erzeugt die Kandidaten. Noch keine NetBox-Schreibzugriffe.
-- Suche und Filter: nach Node, IP, NetBox-Kandidat oder DNS-Namen suchen;
-  offene, bestätigte, eindeutige oder mehrdeutige Fälle anzeigen.
-- Pro Node ein Ziel aus der Auswahlliste wählen. Name, Device/VM-Typ, Objekt-ID,
-  Site, Tenant, IP-Adressen/VRFs und DNS-Namen stehen beim Kandidaten.
-- Die Chips „Name“, „DNS“ und „IP“ zeigen die Art der Übereinstimmung.
-  Bereits anderweitig gebundene Ziele sind als belegt erkennbar und gesperrt.
-- Die gewünschten Zeilen per Checkbox auswählen.
-- „Auswahl bestätigen“ zeigt die Zahl und Wirkung der ausgewählten Zuordnungen.
-  Nach Bestätigung werden die Ziele erneut live geprüft und lokal gespeichert.
-  NetBox bleibt bei diesem Schritt unverändert.
+Replace `root@ccq` with your usual SSH account/alias for the OpenNMS server if
+needed. This is the normal server SSH connection (typically port 22), not the
+Karaf connection on port 8101.
 
-Die Namenserkennung vergleicht Node-label und, bei neuen Erfassungen vorhanden,
-sysName mit dem NetBox-Objektnamen und mit dns_name zugewiesener NetBox-IP-Adressen.
-Groß-/Kleinschreibung und ein abschließender DNS-Punkt werden normalisiert.
-Es werden keine zusätzlichen externen DNS-Abfragen ausgelöst. Es gibt keine
-heuristische Gleichsetzung beliebiger Kurznamen mit einem FQDN.
+Open the complete console link, including `#token=...`, in your workstation
+browser. If port 8765 is already in use, start the interface with `--port 8766`
+and use port 8766 on both sides of the tunnel. Host/Origin validation expects
+the same port in the browser and on the server.
 
-Mehrere Kandidaten bleiben eine bewusste Auswahl. Scope-Regeln aus
-netbox.location_scope gelten weiter (siehe [NetBox-Anleitung](netbox-setup.md)). Ein einzelner Treffer
-bedeutet nicht automatisch eine freigegebene Zuordnung. Bei fehlenden Kandidaten
-NetBox-Namen, DNS- und IP-Zuordnungen prüfen. Diese Version erzeugt keine Assets
-und bietet kein ungeprüftes manuelles Binding zu beliebigen Objekt-IDs.
+The session token authorizes access to the local workspace. It is not sent as
+a URL query: the browser reads it from the fragment and uses it for API requests.
+Every data API request requires the token. NetBox tokens, API passwords and SSH
+passwords are not sent to the browser. Access is intended for an operator through
+an SSH tunnel, rather than a public multiuser service.
 
-5. Eindeutige Treffer gesammelt vorauswählen
-------------------------------------------
-„Eindeutige auswählen“ setzt die Checkboxen der aktuell sichtbaren Zeilen, wenn:
-- genau ein Kandidat vorliegt,
-- Name oder DNS UND die SNMP-IP übereinstimmen,
-- kein anderes Node denselben Kandidaten beansprucht,
-- das Ziel keine widersprechende Quell-ID oder lokale Bindung trägt,
-- bei privaten/nichtglobalen IPs ein nichtleerer Location-Scope konfiguriert ist,
-- es sich um echte und noch nicht gebundene Daten handelt.
+## 4. Map nodes without editing JSON
 
-Anschließend die vorausgewählten Zeilen ansehen und gesammelt bestätigen.
-Der Knopf speichert selbst keine Bindings. Die übrigen Fälle können einzeln
-ausgewählt werden. Fehlende Scope-Regeln erklären, warum trotz passender
-privater IP nicht alles für die Sammelauswahl freigegeben ist.
+- **Match NetBox** reads all devices, VMs and assigned IP addresses from NetBox
+  and generates candidates. This step does not write to NetBox.
+- Use search and filters to find nodes, IPs, NetBox candidates or DNS names and
+  display unmapped, confirmed, clear or ambiguous cases.
+- Choose one target per node from the dropdown. Each candidate shows its name,
+  device/VM type, object ID, site, tenant, IP addresses/VRFs and DNS names.
+- The **Name**, **DNS** and **IP** chips show the matching evidence. Targets
+  already bound elsewhere are marked as occupied and cannot be selected.
+- Select the desired rows using their checkboxes.
+- **Confirm selection** displays the number and effect of the selected mappings.
+  After confirmation, targets are checked against live NetBox data again and
+  bindings are saved locally. NetBox is unchanged by this step.
 
-Bestehende Zuordnungen werden angezeigt und für automatische Änderungen gesperrt.
-Umbenennungen führen weiterhin zu derselben Node-ID/NetBox-Objekt-ID-Verbindung.
-Rebindings werden nicht stillschweigend durchgeführt.
+Name matching compares the node label and, when available in newer collections,
+`sysName` with NetBox object names and the `dns_name` of assigned NetBox IP
+addresses. Case and a trailing DNS dot are normalized. No additional external
+DNS queries are made. Arbitrary short names are not heuristically equated to FQDNs.
 
-6. Software und Historie ansehen
--------------------------------
-Ein Klick auf den Node-Namen oder auf den Detailpfeil öffnet ein Fenster mit:
-- durchsuchbarer Paketliste, Version und Architektur,
-- Versionshistorie mit Beobachtungszeitpunkten,
-- neu beobachteten oder nicht mehr beobachteten Paketen.
+Multiple candidates require an explicit choice. Scope rules from
+`netbox.location_scope` still apply; see the [NetBox guide](netbox-setup.md).
+A single candidate is not automatically approved. If candidates are missing,
+check NetBox names, DNS names and IP assignments. This version does not create
+assets or allow an unchecked manual binding to arbitrary object IDs.
 
-Unter „Software & Historie“ gibt es außerdem die Übersicht aller aktuellen
-Nodes mit Paketanzahl, letztem erfolgreichen Beobachtungszeitpunkt und
-Erfassungsstatus. Ein Timeout entfernt keinen alten Softwarestand.
+## 5. Preselect clear matches in bulk
 
-7. NetBox-Export in der Oberfläche
----------------------------------
-Die vier Custom Fields müssen einmalig bereitgestellt sein, wie bereits für
-Version 3.0 beschrieben. Bei Bedarf im Terminal:
+**Select clear matches** selects currently visible rows only when:
 
-  python3 netbox_inventory.py --config config.json setup-fields
-  python3 netbox_inventory.py --config config.json setup-fields --apply
+- There is exactly one candidate.
+- The name or DNS name **and** the SNMP IP match.
+- No other node claims the same candidate.
+- The target has no conflicting source identity or local binding.
+- Private/non-global IPs have a nonempty configured location scope.
+- The data is real and the node has no existing binding.
 
-Danach im Browser „NetBox-Export“ wählen:
-- „Exportvorschau erstellen“ liest die bestätigten Ziele und zeigt pro Node,
-  welche Inventarfelder geändert würden. Es wird noch nichts geschrieben.
-- „Änderungen nach NetBox schreiben“ ist erst nach einer geeigneten Vorschau
-  aktiv. Die folgende Bestätigung startet die tatsächlichen PATCH-Aufrufe.
-- Ändern sich lokale Erfassung oder Bindings seit der Vorschau, wird der Export
-  abgewiesen. Auch die NetBox-Ergebnisse werden vor dem Schreiben neu geprüft.
-  Dann eine neue Vorschau erstellen.
-- Eine erneute Synchronisierung derselben Beobachtung ist weiterhin ein No-op.
-  Bei Verlust einer Antwort wird der gespeicherte Stand beim nächsten Versuch
-  wieder gelesen, statt zusätzliche Assets oder Historieneinträge zu erzeugen.
+Review the preselected rows, then confirm them together. The preselection button
+does not save bindings. Other cases can be selected individually. Missing scope
+rules explain why a matching private IP may not qualify for bulk selection.
 
-Es wird kein Device und keine VM erstellt oder gelöscht. Export und lokale
-Zuordnung bleiben getrennte Aktionen. Die lokalen CLI-Sperren gelten auch für
-Web-Aktionen: eine Erfassung oder ein anderer Manager kann diese nicht parallel
-überschreiben. Die Weboberfläche selbst führt nur eine Aktion gleichzeitig aus.
-Sie ersetzt keine globale NetBox-Transaktion oder atomare Compare-and-Swap-API.
+Existing mappings are displayed and protected against automatic reassignment.
+Renaming a host preserves the same node ID/NetBox object ID association.
+Bindings are never silently reassigned.
 
-8. Demo und technische Prüfung
-------------------------------
-Ohne Konfiguration, ohne NetBox und ohne externe Netzwerkzugriffe:
+## 6. View software and history
 
-  python3 inventory_web.py --demo
+Click a node name or its detail arrow to open a dialog containing:
 
-Die Demo enthält acht synthetische Nodes, DNS-Treffer, einen mehrdeutigen Fall,
-einen Timeout, eine bereits vorhandene Zuordnung und Versionswechsel.
-Sie nutzt ein temporäres Verzeichnis; Bindings und NetBox-Export sind gesperrt.
-Auch bei der Demo gilt der ausgegebene Sitzungstoken und gegebenenfalls der Tunnel.
+- A searchable package list with versions and architectures.
+- Version history with observation timestamps.
+- Newly observed and no-longer-observed packages.
 
-Tests:
-  python3 -m unittest discover -s tests -v
+**Software & history** also lists all current nodes with package counts, their
+last successful observation timestamp and collection status. A timeout does not
+remove an earlier successful software inventory.
 
-Die Tests prüfen echte SQLite-Dateien, den HTTP-Handler einschließlich
-Authentifizierung/Origin, DNS-Matching, Auswahllogik, Live-Neuvalidierung und
-Exportvorschau. Die HTTP-Handler können ohne geöffneten Netzwerksocket getestet
-werden. Der bestehende Test der SSH-Passwortvermittlung wird in Sandboxes
-übersprungen, die Unix-Socket-Bindings nicht erlauben.
+## 7. Export to NetBox from the interface
 
-Verifizierungsgrenze dieser Lieferung: JavaScript-Syntax und Backend-Tests sind
-geprüft. Ein grafischer Browserstart war in der Entwicklungsumgebung nicht
-möglich; deshalb gibt es noch keine abgeschlossene visuelle Browserabnahme.
-Die Anbindung an dein NetBox 4.5.3 ist weiterhin auf ccq live zu prüfen.
+Provision the four custom fields once, as described in the NetBox guide. If
+needed, run these commands in a terminal:
 
-## Konflikte beim Bestätigen
+```bash
+python3 netbox_inventory.py --config config.json setup-fields
+python3 netbox_inventory.py --config config.json setup-fields --apply
+```
 
-Ein NetBox-Device oder eine VM kann jeweils nur einem OpenNMS-Node zugeordnet
-werden. Wählen mehrere Nodes dasselbe Ziel, markiert die Oberfläche die
-betroffenen Zeilen und sperrt „Auswahl bestätigen“. Unter dem Filter
-„Konflikte“ lassen sich diese Zeilen gemeinsam anzeigen, auch wenn zuvor
-eine Suche oder ein anderer Filter aktiv war. Anhand von Node-ID, IP und
-Location prüfen, welcher Node zu dem Asset gehört; die andere Checkbox
-abwählen oder ein anderes passendes Ziel auswählen.
+Then open **NetBox export** in the browser:
 
-Beim Speichern werden alle ausgewählten Kandidaten erneut aus NetBox gelesen.
-Ein inzwischen entferntes, anders belegtes oder verändertes Ziel wird mit
-Hostnamen, Node-ID und Ziel-ID gemeldet. Dann „NetBox abgleichen“ erneut
-ausführen und die betroffene Auswahl neu prüfen. Ein neuer Abgleich setzt
-die bisherige Auswahl zurück. Eine abgelehnte Bestätigung erhält die Auswahl;
-es werden keine Zuordnungen aus dieser Anfrage gespeichert und keine
-NetBox-Felder geändert. Bereits bestätigte Zuordnungen bleiben erhalten.
+- **Create export preview** reads confirmed targets and shows which inventory
+  fields would change for each node. It does not write anything.
+- **Write changes to NetBox** becomes available after a suitable preview.
+  The subsequent confirmation starts the actual PATCH requests.
+- If local observations or bindings change after the preview, the export is
+  rejected. NetBox results are also checked again before writing. Create a new
+  preview if either side has changed.
+- Synchronizing the same observation again is a no-op. If a response is lost,
+  the next attempt reads the stored state again rather than creating additional
+  assets or duplicate history entries.
+
+No device or VM is created or deleted. Export and local mapping remain separate
+operations. CLI locks also apply to web operations: a collector or another
+manager cannot overwrite the same local data concurrently. The web interface
+runs only one operation at a time. This is not a global NetBox transaction or
+an atomic compare-and-swap API.
+
+## 8. Demo and technical validation
+
+Run without configuration, NetBox or external network access:
+
+```bash
+python3 inventory_web.py --demo
+```
+
+The demo includes eight synthetic nodes, DNS matches, an ambiguous case, a
+timeout, an existing mapping and version transitions. It uses a temporary
+directory; saving bindings and exporting to NetBox are disabled. The printed
+session token and, where required, an SSH tunnel are still needed.
+
+Run the tests with:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Tests cover real SQLite files, HTTP handlers including authentication and Origin
+checks, DNS matching, selection logic, live revalidation and export previews.
+HTTP handlers can be tested without opening a network socket. SSH password-helper
+tests are skipped in sandboxes that prohibit Unix socket bindings.
+
+Validation scope: JavaScript syntax and backend behavior are checked automatically.
+A graphical browser could not be launched in the original development environment,
+so full visual browser acceptance is not part of that verification. Validate
+your live NetBox 4.5.3 deployment separately from the simulated API tests.
+
+## Conflicts when confirming mappings
+
+Each NetBox device or VM can be mapped to only one OpenNMS node. If several
+selected nodes use the same target, the interface highlights those rows and
+disables **Confirm selection**. Use the **Conflicts** filter to display them
+together, including rows hidden by a previous filter; clear any search text if
+needed. Compare node IDs, IP addresses and locations to determine which node
+belongs to the asset, then deselect the other checkbox or choose another matching
+target.
+
+All selected candidates are read from NetBox again before saving. A target that
+has been removed, assigned elsewhere or changed is reported with its hostname,
+node ID and target ID. Select **Match NetBox** again and review the affected
+selection. A new matching operation resets the current selection. A rejected
+confirmation preserves the selection, saves no mappings from that request and
+changes no NetBox fields. Previously confirmed bindings are retained.

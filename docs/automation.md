@@ -1,30 +1,29 @@
-# Periodischer Betrieb auf ccq
+# Scheduled operation on ccq
 
-Die mitgelieferte systemd-Service- und Timer-Unit führt täglich eine Erfassung
-über OpenNMS aus und exportiert anschließend die bereits bestätigten
-Zuordnungen nach NetBox. Sie benutzt weiterhin `/root/config.json` und
-`/root/state`. Neue Nodes werden automatisch aus OpenNMS entdeckt und lokal
-historisiert; ihre NetBox-Zuordnung bestätigst du in der Weboberfläche.
-Die Oberfläche muss für den täglichen Lauf nicht gestartet sein.
+The supplied systemd service and timer collect inventory through OpenNMS daily,
+then export previously confirmed mappings to NetBox. They continue to use
+`/root/config.json` and `/root/state`. New nodes are discovered automatically
+through OpenNMS and recorded in local history; confirm their NetBox mappings
+in the web interface. The interface does not need to be running for scheduled
+collection and export.
 
-## Anmeldung bei OpenNMS 35.0.5
+## Authentication with OpenNMS 35.0.5
 
-Für Karaf auf dem Core ist SSH-Public-Key-Anmeldung erst mit Horizon 36.0.2
-als Neuerung dokumentiert ([Release Notes, NMS-19953](https://github.com/OpenNMS/opennms/releases/tag/opennms-36.0.2-1)).
-Für den Betrieb mit 35.0.5 benutzt die Vorlage deshalb ein Passwort aus einer
-explizit angegebenen Datei. Ein OpenNMS-Upgrade ist dafür nicht erforderlich.
+SSH public-key authentication for Karaf on the Core is documented as a new feature
+in Horizon 36.0.2 ([release notes, NMS-19953](https://github.com/OpenNMS/opennms/releases/tag/opennms-36.0.2-1)).
+For 35.0.5, the template therefore uses a password from an explicitly specified
+file. This does not require an OpenNMS upgrade.
 
-Das Passwort liegt dabei dauerhaft als Klartext auf dem Server in einer nur
-für root lesbaren Datei. Der Collector lehnt gruppen- oder fremdlesbare Dateien,
-falsche Eigentümer, Symlinks, leere Dateien und mehrzeilige Passwörter ab.
-Datei und Verzeichnis gehören nicht ins Git-Repository. Das Passwort gelangt
-weder in die SSH-Kommandozeile noch in Umgebungsvariablen oder Journald-Logs;
-der bestehende private ASKPASS-Kanal übergibt es an OpenSSH.
-Die interaktive Anmeldung funktioniert weiterhin mit `--ssh-interactive`.
+The password is stored persistently in plaintext in a file readable only by root.
+The collector rejects group/world-readable files, incorrect owners, symlinks,
+empty files and multiline passwords. Keep the file and its directory outside
+Git. The SSH password is not placed in SSH command-line arguments, environment
+variables or journal logs; the existing private ASKPASS channel passes it to
+OpenSSH. Interactive authentication remains available with `--ssh-interactive`.
 
-## Einmalige Vorbereitung
+## One-time preparation
 
-Auf ccq als root:
+On ccq, as root:
 
 ```bash
 cd /opt/opennms-software-inventory
@@ -35,44 +34,42 @@ chmod 600 /etc/opennms-software-inventory/credentials.env /etc/opennms-software-
 nano /etc/opennms-software-inventory/credentials.env
 ```
 
-In `credentials.env` die API-Zugangsdaten hinterlegen. Die Namen müssen den
-`username_env`, `password_env` und `token_env`-Werten deiner config.json entsprechen.
-Die Standardnamen sind:
+Put the API credentials in `credentials.env`. Variable names must match the
+`username_env`, `password_env` and `token_env` settings in your `config.json`.
+The default names are:
 
 ```ini
-OPENNMS_USERNAME='DEIN_API_BENUTZER'
-OPENNMS_PASSWORD='DEIN_API_PASSWORT'
-NETBOX_TOKEN='DEIN_NETBOX_TOKEN'
+OPENNMS_USERNAME='YOUR_API_USERNAME'
+OPENNMS_PASSWORD='YOUR_API_PASSWORD'
+NETBOX_TOKEN='YOUR_NETBOX_TOKEN'
 ```
 
-Nur Zuweisungen, keine `export`-Anweisungen, Shell-Kommandos oder Variablenverweise
-verwenden. Die Datei liest systemd als `EnvironmentFile`, nicht als Shell-Skript.
-Die Werte oben sind Platzhalter. Passwörter mit Anführungszeichen entsprechend
-der [EnvironmentFile-Syntax](https://www.freedesktop.org/software/systemd/man/251/systemd.exec.html#EnvironmentFile=)
-eintragen.
+Use assignments only, without `export`, shell commands or variable references.
+systemd reads this file as an `EnvironmentFile`, not as a shell script. The values
+above are placeholders. For passwords containing quotation marks, follow the
+[EnvironmentFile syntax](https://www.freedesktop.org/software/systemd/man/251/systemd.exec.html#EnvironmentFile=).
 
-Danach:
+Next:
 
 ```bash
 nano /etc/opennms-software-inventory/karaf-password
 ```
 
-Hier nur das SSH-Passwort für `admin@localhost:8101` als eine Zeile eintragen,
-keinen Variablennamen. Ein abschließender Zeilenumbruch ist erlaubt.
-Das SSH-Ziel bleibt dein `ssh_target` aus config.json. Bei einem SSH-Alias
-benutzt der Service als root dieselbe `/root/.ssh/config` und dieselben
-bekannten Hostschlüssel wie dein bisheriger Lauf. Der Hostschlüssel muss
-bereits bekannt sein; die strikte Prüfung bleibt aktiviert.
+Enter only the SSH password for `admin@localhost:8101` on a single line, without
+a variable name. A final newline is allowed. The SSH target remains the
+`ssh_target` from `config.json`. With an SSH alias, the service runs as root and
+uses the same `/root/.ssh/config` and known host keys as your previous manual
+runs. The host key must already be trusted; strict verification remains enabled.
 
-Die NetBox-Custom-Fields müssen bereits eingerichtet sein und der Token muss
-die benötigten Lese- und Änderungsrechte haben. Der tägliche Lauf erstellt
-keine Felder und bestätigt keine neuen Zuordnungen.
+The NetBox custom fields must already exist, and the token must have the required
+read and change permissions. The daily job does not create fields or approve
+new mappings.
 
-## Zuerst einen vollständigen Probelauf starten
+## Run a complete trial first
 
-Dieser Lauf erfasst und historisiert echte Softwarestände; der NetBox-Export
-bleibt eine Vorschau, weil `--apply` fehlt. API-Zugänge werden wie später im
-Service aus der Environment-Datei geladen:
+This trial collects real software inventory and records its history. The NetBox
+export remains a preview because `--apply` is omitted. API credentials are loaded
+from the environment file in the same way as in the scheduled service:
 
 ```bash
 systemd-run --unit=opennms-inventory-check --wait --pipe --collect \
@@ -83,15 +80,15 @@ systemd-run --unit=opennms-inventory-check --wait --pipe --collect \
   --ssh-password-file /etc/opennms-software-inventory/karaf-password
 ```
 
-Bei unerreichbaren Hosts läuft die Erfassung weiter. Der Zyklus meldet dann
-Exitcode 1, führt die Exportvorschau aber trotzdem aus. Ein falsches SSH-Passwort,
-fehlgeschlagene Discovery oder ein unvollständiger Lauf verhindert den Export.
-Vor dem nächsten Schritt bei Fehlern das Log und `cycle.status.json` prüfen.
+Collection continues when individual hosts are unreachable. In that case the
+cycle returns exit code 1, but still creates the export preview. An incorrect SSH
+password, failed discovery or incomplete overall run prevents export. If there
+are errors, inspect the log and `cycle.status.json` before proceeding.
 
-## Service und Timer installieren
+## Install the service and timer
 
-Der Service enthält `--apply`: Ab jetzt werden bestätigte Ziele tatsächlich
-aktualisiert. Die Units aktivieren sich nicht durch einen Git-Checkout:
+The service includes `--apply`: confirmed targets will actually be updated.
+Cloning the repository does not activate the units:
 
 ```bash
 cd /opt/opennms-software-inventory
@@ -104,21 +101,21 @@ systemctl enable --now opennms-software-inventory.timer
 systemctl list-timers opennms-software-inventory.timer
 ```
 
-Standard: täglich ab 02:00 Uhr mit bis zu zehn Minuten Zufallsverzögerung, in der
-Serverzeitzone. `Persistent=true` holt einen während eines ausgeschalteten oder
-gestoppten Timers verpassten Termin beim Aktivieren nach. Ein schon laufender
-Service wird vom Timer nicht nochmals gestartet.
-Siehe [systemd.timer](https://www.freedesktop.org/software/systemd/man/251/systemd.timer.html).
+Default schedule: daily from 02:00, with up to ten minutes of random delay, in
+the server time zone. `Persistent=true` catches up on a missed scheduled run
+when the timer is activated after being stopped or powered off. The timer does
+not start a second instance of an already running service. See
+[systemd.timer](https://www.freedesktop.org/software/systemd/man/251/systemd.timer.html).
 
-## Häufigkeit ändern
+## Change the frequency
 
-Beispiel: alle sechs Stunden, ab 00:00 Uhr:
+For example, run every six hours starting at midnight:
 
 ```bash
 systemctl edit opennms-software-inventory.timer
 ```
 
-Den Drop-in-Inhalt setzen:
+Set this drop-in content:
 
 ```ini
 [Timer]
@@ -126,7 +123,7 @@ OnCalendar=
 OnCalendar=*-*-* 00,06,12,18:00:00
 ```
 
-Danach:
+Then:
 
 ```bash
 systemctl daemon-reload
@@ -134,13 +131,13 @@ systemctl restart opennms-software-inventory.timer
 systemctl list-timers opennms-software-inventory.timer
 ```
 
-Das leere `OnCalendar=` entfernt den bisherigen Tagesplan, bevor der neue
-gesetzt wird. Mit täglich beginnen und erst anhand der Laufzeit erhöhen:
-Die SNMP-Walks laufen nacheinander, und Timeouts können den Lauf verlängern.
-Der Timer wartet auf einen laufenden Service. Mehrere manuelle Zyklusaufrufe
-für dieselbe Quelle verhindert zusätzlich `.cycle.lock`.
+The empty `OnCalendar=` clears the previous daily schedule before adding the
+new one. Start with daily runs and increase the frequency only after measuring
+run times: SNMP walks run sequentially, and timeouts can extend collection.
+The timer does not overlap an active service. The `.cycle.lock` also prevents
+multiple manual cycle invocations for the same source.
 
-## Betrieb und Fehler
+## Operation and errors
 
 ```bash
 systemctl status opennms-software-inventory.service
@@ -148,46 +145,44 @@ journalctl -u opennms-software-inventory.service --since today
 systemctl list-timers opennms-software-inventory.timer
 ```
 
-Zusätzlich stehen im Verzeichnis `/root/state/<source_id>/`:
+The directory `/root/state/<source_id>/` also contains:
 
-- `cycle.status.json`: Status des letzten Zyklus, Schritte und Exitcodes.
-- `inventory.json`: letzter Erfassungslauf inklusive Hostfehlern.
-- `netbox-sync.json`: letzter Export bzw. letzte Exportvorschau.
-- `history.sqlite3`: vollständige lokale Beobachtungs- und Exporthistorie.
+- `cycle.status.json`: status of the latest cycle, its steps and exit codes.
+- `inventory.json`: latest collection run, including host failures.
+- `netbox-sync.json`: latest export or export preview.
+- `history.sqlite3`: complete local observation and export history.
 
-Exitcodes des Zyklus:
+Cycle exit codes:
 
-| Code | Bedeutung |
+| Code | Meaning |
 |---|---|
-| 0 | Erfassung und Export/Vorschau abgeschlossen |
-| 1 | Einzelne Hostabfragen fehlgeschlagen; abgeschlossene Erfassung und Export/Vorschau trotzdem ausgeführt |
-| 2 | Fehler bei Vorbereitung, Gesamterfassung oder Export; Details im Status/Log |
+| 0 | Collection and export/preview completed |
+| 1 | Individual host queries failed; overall collection and export/preview still completed |
+| 2 | Preparation, overall collection or export failed; see the status file and log |
 
-Exitcode 1 wird von systemd bewusst als Fehler sichtbar gemacht. Das bedeutet
-nicht, dass die erfolgreichen Hosts nicht übertragen wurden. Fehlende
-Zuordnungen sind kein Exportfehler: `sync --confirmed-only` protokolliert sie
-als `skipped`, ohne Assets anzulegen oder die Zuordnung zu erraten. Fehler
-an bereits gebundenen Hosts bleiben dagegen sichtbar.
+Exit code 1 is deliberately shown as a failure by systemd. Successful hosts
+were still processed by the export step. Missing mappings are not export errors:
+`sync --confirmed-only` reports them as `skipped`, without creating assets or
+guessing mappings. Errors on already bound hosts remain visible.
 
-Die bisherigen Schutzmechanismen gelten weiter: Keine Übernahme fremder
-Identitäten und kein Überschreiben neuerer Beobachtungen in NetBox. Ein
-fehlgeschlagener Hostscan behält seinen letzten erfolgreichen Softwarestand;
-der Export kann dessen Zustand als veraltet bzw. fehlgeschlagen kennzeichnen.
-Ein abgebrochener oder alter Gesamtreport wird nicht als neuer Lauf exportiert.
+The existing protections still apply: foreign identities are not taken over,
+and newer NetBox observations are not overwritten. A failed host scan preserves
+its last successful software inventory; the export may mark it as stale or as a
+collection failure. An aborted or old overall report is not exported as a new run.
 
-Während der Collector oder Export die Betriebsdaten sperrt, lehnen schreibende
-UI-Aktionen einen parallelen Abgleich ab. Danach erneut versuchen. Nach einem
-neuen Scan „NetBox abgleichen“ benutzen, wenn du neue Nodes zuordnen willst.
-Regelmäßig die SQLite-Datenbank mit dem vorhandenen `backup`-Befehl sichern.
+While the collector or exporter holds the data lock, mutating UI operations
+reject concurrent matching attempts. Try again afterwards. After a new scan,
+select **Match NetBox** if you want to map newly discovered nodes. Back up the
+SQLite database regularly using the existing `backup` command.
 
-Für Codeupdates den Timer vorübergehend stoppen und einen laufenden Service
-zuerst fertig werden lassen. Danach `git pull --ff-only`. Änderungen an den
-Unit-Vorlagen werden erst durch erneutes Kopieren und `daemon-reload` wirksam;
-eigene systemd-Drop-ins bleiben erhalten. Zum Abschalten:
+For code updates, temporarily stop the timer and let any running service finish
+first. Then run `git pull --ff-only`. Updated unit templates take effect only
+after you copy them again and run `daemon-reload`; custom systemd drop-ins are
+retained. To disable scheduling:
 
 ```bash
 systemctl disable --now opennms-software-inventory.timer
 ```
 
-Das stoppt künftige Termine. Ein bereits laufender Erfassungsvorgang bleibt
-aktiv und kann regulär fertig werden.
+This stops future triggers. An already running collection remains active and
+can finish normally.

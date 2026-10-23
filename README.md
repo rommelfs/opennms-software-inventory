@@ -1,39 +1,38 @@
 # OpenNMS Software Inventory
 
-Softwareinventar für Linux-Server über **OpenNMS und Minions**, mit lokaler
-Versionshistorie und einer Weboberfläche zur Zuordnung vorhandener NetBox-Assets.
+Software inventory for Linux servers through **OpenNMS and Minions**, with local
+version history and a web interface for mapping nodes to existing NetBox assets.
 
-OpenNMS liefert die vollständige Hostliste, primäre SNMP-Adressen und Locations.
-Die Anwendung fragt `hrSWInstalledName` über OpenNMS ab, speichert Beobachtungen
-in SQLite und überträgt aktuelle Softwarestände in eigene NetBox-Custom-Fields.
+OpenNMS supplies the complete host list, primary SNMP addresses and locations.
+The application queries `hrSWInstalledName` through OpenNMS, stores observations
+in SQLite and exports the latest software inventory to dedicated NetBox custom fields.
 
-**Stand: funktionierender PoC, Version 3.1.** Die Erfassung wurde auf dem
-OpenNMS-Server eingesetzt. Der NetBox-Adapter ist mit simulierten APIs getestet;
-eine vollständige Live-Abnahme gegen NetBox 4.5.3 und eine grafische
-Browserabnahme stehen noch aus. Die Anwendung erstellt oder löscht keine Assets.
+**Status: working proof of concept, version 3.1.** The collector has been used on
+the OpenNMS server. Automated tests use simulated NetBox APIs; full deployment
+acceptance against NetBox 4.5.3 and visual browser acceptance are separate checks.
+The application does not create or delete assets.
 
-## Auf dem OpenNMS-Server installieren
+## Install on the OpenNMS server
 
-Voraussetzungen: Linux, Git, Python 3.8+ mit `sqlite3`, OpenSSH.
-Keine zusätzlichen Python-Pakete, Node.js-Installation oder Container nötig.
+Requirements: Linux, Git, Python 3.8+ with `sqlite3`, and OpenSSH.
+No additional Python packages, Node.js installation or containers are required.
 
 ```bash
 git clone https://github.com/rommelfs/opennms-software-inventory.git /opt/opennms-software-inventory
 cd /opt/opennms-software-inventory
-python3 -m py_compile inventory.py inventory_store.py netbox_inventory.py inventory_web.py inventory_web_demo.py
+python3 -m py_compile inventory.py inventory_cycle.py inventory_store.py netbox_inventory.py inventory_web.py inventory_web_demo.py
 python3 inventory.py --version
 ```
 
-Ein privates Repository benötigt beim Klonen einen geeigneten GitHub-Zugang,
-etwa einen auf dieses Repository beschränkten SSH-Deploy-Key. Dann lautet die URL
+The public repository can be cloned over HTTPS without GitHub authentication.
+If you prefer SSH and have configured a suitable key, use
 `git@github.com:rommelfs/opennms-software-inventory.git`.
-Kein Token in die Git-URL schreiben.
+Do not put a token in the Git URL.
 
-### Von den bisherigen Dateien auf ccq umsteigen
+### Migrate from the existing files on ccq
 
-**`/root/config.json` und `/root/state` bleiben an ihrem Platz.**
-`source_id` nicht ändern. Ein erneuter SNMP-Gesamtlauf ist für den Umstieg
-nicht erforderlich.
+**Keep `/root/config.json` and `/root/state` where they are.**
+Do not change `source_id`. Migration does not require another full SNMP scan.
 
 ```bash
 cd /opt/opennms-software-inventory
@@ -41,31 +40,30 @@ python3 netbox_inventory.py --config /root/config.json --state /root/state impor
 python3 inventory_web.py --config /root/config.json --state /root/state
 ```
 
-`--state` bezeichnet das übergeordnete Verzeichnis. Bei `source_id: opennms`
-liegt die Datenbank also in `/root/state/opennms/history.sqlite3`.
+`--state` specifies the parent directory. With `source_id: opennms`, the database
+is therefore `/root/state/opennms/history.sqlite3`.
 
-Auf deinem Rechner den SSH-Tunnel öffnen:
+Open the SSH tunnel on your workstation:
 
 ```bash
 ssh -N -L 8765:127.0.0.1:8765 root@ccq
 ```
 
-Danach den beim Webserverstart ausgegebenen Link einschließlich `#token=...`
-im Browser öffnen. Der Webserver lauscht ausschließlich auf `127.0.0.1:8765`.
-Er läuft im Vordergrund; `Ctrl+C` beendet ihn. Die bisherigen einzelnen
-Python-Dateien können zunächst liegenbleiben; künftig die Programme aus diesem
-Checkout aufrufen.
+Then open the link printed at web server startup, including `#token=...`, in your
+browser. The web server listens only on `127.0.0.1:8765`. It runs in the foreground;
+press `Ctrl+C` to stop it. You can keep the previous standalone Python files for
+now; run the application from this checkout going forward.
 
-### Neue Installation
+### New installation
 
-Eine Vorlage auswählen und **außerhalb des Checkouts** als Konfiguration speichern:
+Choose a template and save your configuration **outside the checkout**:
 
-- [OpenNMS ohne NetBox](examples/config.opennms-only.json)
-- [OpenNMS und NetBox](examples/config.json)
+- [OpenNMS without NetBox](examples/config.opennms-only.json)
+- [OpenNMS and NetBox](examples/config.json)
 
-API-Zugangsdaten kommen aus den in der Konfiguration benannten Umgebungsvariablen.
-Beispieldaten sind synthetisch. Für die Nutzung die URLs anpassen.
-`ssh_target` ist ein SSH-Konfigurationsalias zur OpenNMS-Karaf-Shell, beispielsweise:
+API credentials are read from the environment variables named in the configuration.
+The example data is synthetic. Update the URLs for your deployment.
+`ssh_target` is an SSH configuration alias for the OpenNMS Karaf shell, for example:
 
 ```sshconfig
 Host opennms-karaf
@@ -74,11 +72,11 @@ Host opennms-karaf
     User admin
 ```
 
-Der Zugriff ist zur Karaf-Shell, nicht per SSH zu jedem Zielhost.
+SSH connects to the Karaf shell, rather than to each target host.
 
-## Updates auf ccq
+## Update on ccq
 
-Oberfläche mit `Ctrl+C` stoppen und einen laufenden Collector beenden lassen:
+Stop the web interface with `Ctrl+C` and let any active collector finish:
 
 ```bash
 cd /opt/opennms-software-inventory
@@ -86,76 +84,75 @@ git pull --ff-only
 python3 inventory_web.py --config /root/config.json --state /root/state
 ```
 
-Konfiguration, SQLite-Historie und bestätigte Zuordnungen liegen außerhalb
-des Checkouts und werden durch `git pull` nicht ersetzt. Die Datenbank wie
-die übrigen Betriebsdaten sichern. Ein konsistentes Backup erzeugt:
+Configuration, SQLite history and confirmed mappings remain outside the checkout;
+`git pull` does not replace them. Back up the database along with the other
+operational data. To create a consistent backup:
 
 ```bash
 python3 netbox_inventory.py --config /root/config.json --state /root/state backup --output /root/history-backup.sqlite3
 ```
 
-Der Backup-Zielname muss neu sein. Mehrere Programmversionen nicht gleichzeitig
-auf dieselben Betriebsdaten schreiben lassen.
+The backup destination must not exist. Do not let multiple application versions
+write to the same operational data at the same time. For scheduled deployments,
+also follow the update instructions in the [automation guide](docs/automation.md).
 
-## Typischer Ablauf
+## Typical workflow
 
-1. Bereits erhobene Dateien importieren; spätere Scans protokollieren ihre
-   Historie automatisch.
-2. In der Weboberfläche **NetBox abgleichen**: Kandidaten anhand von Objektname,
-   `dns_name` und zugewiesener IP vergleichen.
-3. Ziele auswählen und bestätigen. Eindeutige Treffer lassen sich gesammelt
-   vorauswählen. Dieser Schritt speichert lokale Bindings und verändert NetBox nicht.
-4. Unter **NetBox-Export** eine Vorschau erstellen und anschließend die Änderungen
-   bewusst übertragen. Änderungen seit der Vorschau erfordern eine neue Vorschau.
+1. Import previously collected files. Subsequent scans record their history automatically.
+2. In the web interface, select **Match NetBox** to compare candidates by object name,
+   `dns_name` and assigned IP address.
+3. Select and confirm targets. Clear matches can be preselected in bulk. This step
+   saves local bindings and leaves NetBox unchanged.
+4. Under **NetBox export**, create a preview and explicitly apply the changes.
+   Changes since the preview require a new preview.
 
-Vor dem ersten Export einmalig die Custom Fields bereitstellen:
+Provision the custom fields once before the first export:
 
 ```bash
 python3 netbox_inventory.py --config /root/config.json --state /root/state setup-fields
 python3 netbox_inventory.py --config /root/config.json --state /root/state setup-fields --apply
 ```
 
-Ein passender NetBox-Token muss dafür in der konfigurierten Umgebungsvariable
-bereitstehen. Der Browser erhält ihn nicht.
+A suitable NetBox token must be available in the configured environment variable.
+It is never sent to the browser.
 
-Weitere Scans:
+Run subsequent scans with:
 
 ```bash
 python3 inventory.py --config /root/config.json --state /root/state --ssh-interactive
 ```
 
-Das SSH-Passwort wird einmal pro Lauf abgefragt und nur im Arbeitsspeicher
-gehalten. Ein SNMP-Timeout wird protokolliert; die anderen Hosts laufen weiter.
-Unbeaufsichtigte Läufe benötigen einen geeigneten SSH-Zugang ohne interaktive
-Passwortabfrage. Mit `--ssh-password-file` ist auch bei älteren OpenNMS-Versionen
-ein geplanter Passwortzugang möglich. Die Datei bleibt außerhalb des Repositorys
-und muss ausschließlich dem ausführenden Benutzer gehören und für ihn lesbar sein
-(empfohlen `chmod 600`).
+The interactive SSH password is requested once per run and kept only in memory.
+SNMP timeouts are recorded and processing continues with the remaining hosts.
+Unattended runs need SSH access without an interactive prompt.
+`--ssh-password-file` supports scheduled password authentication on older OpenNMS
+versions. Keep that file outside the repository, owned by the executing user,
+and inaccessible to other users (recommended permissions: `chmod 600`).
 
-## Periodische Erfassung und Export
+## Scheduled collection and export
 
-Der [systemd-Leitfaden](docs/automation.md) beschreibt die Einrichtung auf ccq
-mit OpenNMS 35.0.5. Vorbereitete Units unter `deploy/systemd/` starten täglich
-zwischen 02:00 und etwa 02:10 Uhr (Serverzeitzone). Sie werden erst aktiv, wenn
-du sie auf dem Server installierst und den Timer einschaltest.
+The [systemd guide](docs/automation.md) describes deployment on ccq with OpenNMS
+35.0.5. The unit templates under `deploy/systemd/` schedule a daily run between
+02:00 and approximately 02:10 in the server time zone. They become active only
+after you install them on the server and enable the timer.
 
-`inventory_cycle.py` erfasst alle OpenNMS-Nodes und synchronisiert anschließend
-ausschließlich bestehende bestätigte Bindings. Ohne `--apply` erstellt der
-Export eine Vorschau. Neue Nodes bleiben bis zur Zuordnung in der Weboberfläche
-ohne Export. Einzelne Hostfehler verhindern den Export erfolgreicher Ergebnisse
-nicht. Ein abgebrochener Gesamtlauf startet keinen Export.
+`inventory_cycle.py` collects all OpenNMS nodes, then synchronizes only existing,
+confirmed bindings. Without `--apply`, the export is a preview. New nodes are
+not exported until you confirm their mappings in the web interface. Individual
+host failures do not prevent successful results from being exported. An aborted
+overall collection does not start an export.
 
-## Dokumentation
+## Documentation
 
-- [Weboberfläche, SSH-Tunnel, Kandidatenauswahl und Export](docs/web-ui.md)
-- [NetBox-Felder, Zuordnungsmodell, Historie und CLI](docs/netbox-setup.md)
-- [Betriebsdaten und Repository-Inhalte](docs/data-boundaries.md)
-- [Automatisierung, Passwortdatei und systemd-Timer](docs/automation.md)
+- [Web interface, SSH tunnel, candidate selection and export](docs/web-ui.md)
+- [NetBox fields, mapping model, history and CLI](docs/netbox-setup.md)
+- [Operational data and repository contents](docs/data-boundaries.md)
+- [Automation, password file and systemd timer](docs/automation.md)
 
-Die Erfassung zeigt **installierte Pakete**, keine vollständige Container-SBOM,
-keinen Nachweis tatsächlich laufender Prozesse und keine automatische
-CVE-Betroffenheit. Versionsübergänge haben Beobachtungszeitpunkte; tatsächliche
-Installationszeiten werden nicht erfunden.
+Collection reports **installed packages**. It is not a complete container SBOM,
+proof of running processes or an automatic CVE applicability assessment.
+Version transitions have observation timestamps; actual installation times are
+not inferred.
 
 ## Demo
 
@@ -163,8 +160,8 @@ Installationszeiten werden nicht erfunden.
 python3 inventory_web.py --demo
 ```
 
-Die Demo verwendet acht synthetische Nodes in einem temporären Verzeichnis,
-benötigt kein NetBox und führt keine externen Abfragen oder Exporte aus.
+The demo uses eight synthetic nodes in a temporary directory. It needs no NetBox
+instance and performs no external queries or exports.
 
 ## Tests
 
@@ -172,28 +169,27 @@ benötigt kein NetBox und führt keine externen Abfragen oder Exporte aus.
 python3 -m unittest discover -s tests -v
 ```
 
-Die JavaScript-Prüfungen der Kandidatenauswahl benötigen für die Entwicklung
-zusätzlich Node.js (im Serverbetrieb nicht erforderlich):
+The JavaScript candidate-selection checks also require Node.js for development
+(it is not required to run the application on the server):
 
 ```bash
 node --check web/app.js
 node --test tests/test_mapping.cjs
 ```
 
-Die Tests nutzen temporäre SQLite-Datenbanken und simulierte NetBox-APIs.
-Der Test der lokalen SSH-Passwortvermittlung wird übersprungen, wenn die
-Ausführungsumgebung Unix-Socket-Bindings verbietet. Die HTTP-Handler werden
-zusätzlich ohne geöffneten Netzwerksocket geprüft.
+Tests use temporary SQLite databases and simulated NetBox APIs. Local SSH
+password-helper tests are skipped if the environment prohibits Unix socket
+bindings. HTTP handlers are also tested without opening a network socket.
 
-## Struktur
+## Project structure
 
-| Datei | Aufgabe |
+| File | Purpose |
 |---|---|
-| `inventory.py` | OpenNMS-Discovery und SNMP-Erfassung |
-| `inventory_cycle.py` | Geplante Erfassung und Export bestätigter Zuordnungen |
-| `inventory_store.py` | SQLite-Historie und dauerhafte Bindings |
-| `netbox_inventory.py` | Import, Kandidaten, Freigabe und Export per CLI |
-| `inventory_web.py` | Lokale Weboberfläche und Operator-API |
-| `inventory_web_demo.py` | Isolierte Demo-Daten |
-| `web/` | HTML, CSS und JavaScript ohne Build-Schritt |
-| `examples/` | Ausschließlich synthetische Konfigurationen und Fixtures |
+| `inventory.py` | OpenNMS discovery and SNMP collection |
+| `inventory_cycle.py` | Scheduled collection and export of confirmed mappings |
+| `inventory_store.py` | SQLite history and persistent bindings |
+| `netbox_inventory.py` | CLI import, candidate proposals, approval and export |
+| `inventory_web.py` | Local web interface and operator API |
+| `inventory_web_demo.py` | Isolated demo data |
+| `web/` | HTML, CSS and JavaScript without a build step |
+| `examples/` | Synthetic configurations and fixtures only |

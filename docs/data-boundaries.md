@@ -1,28 +1,27 @@
-# Betriebsdaten und Quellcode
+# Operational data and source code
 
-Das Repository enthält ausschließlich Programmcode, Dokumentation, Tests und
-synthetische Beispiele.
+The repository contains only application code, documentation, tests and synthetic
+examples.
 
-Außerhalb des Checkouts bleiben:
+Keep the following outside the checkout:
 
-- Tatsächliche `config.json`, API-Tokens, SSH-Schlüssel und private CA-Schlüssel.
-- Erhobene Host-/Softwaredateien und rohe SNMP-Ausgaben.
-- SQLite-Historie und Backups.
-- Review-Pläne wie `mapping.json`.
+- Your actual `config.json`, API tokens, SSH keys and private CA keys.
+- Collected host/software files and raw SNMP output.
+- SQLite history and backups.
+- Review plans such as `mapping.json`.
+- Scheduled-run credentials, including `credentials.env` and `karaf-password`.
 
-Die `.gitignore` schützt die üblichen lokalen Dateinamen zusätzlich. Sie ersetzt
-keine Prüfung, wenn Dateien anders benannt oder aus anderen Verzeichnissen
-hineinkopiert werden.
+The `.gitignore` adds protection for common local filenames. It does not replace
+checking files with different names or files copied from other directories.
 
-Empfohlener Umstieg auf ccq: Checkout unter `/opt/opennms-software-inventory`,
-bestehende Daten weiterhin unter `/root/state` und Konfiguration
-`/root/config.json`. In allen Aufrufen absolute `--config`- und `--state`-Pfade
-verwenden. Dadurch wird nicht versehentlich eine neue Datenbank im Checkout
-angelegt.
+Recommended migration on ccq: clone to `/opt/opennms-software-inventory`, keep
+existing data under `/root/state`, and keep the configuration at `/root/config.json`.
+Use absolute `--config` and `--state` paths in every command. This avoids
+accidentally creating a new database inside the checkout.
 
-Für Backups die CLI-Funktion `backup` verwenden und das erzeugte SQLite-Backup
-zusammen mit Konfiguration und den erforderlichen Betriebsdateien getrennt
-sichern. Tokens separat und geschützt verwalten.
+Use the CLI `backup` command for consistent database backups. Store the resulting
+SQLite backup together with the configuration and required operational files
+in a separate backup location. Manage tokens separately and protect them.
 
-NetBox ist der Speicher für den aktuellen Softwarestand; die vollständige
-lokale Beobachtungshistorie und die bestätigten Bindings liegen in SQLite.
+NetBox stores the current software inventory. SQLite holds the complete local
+observation history and confirmed bindings.

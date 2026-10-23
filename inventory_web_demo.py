@@ -15,7 +15,7 @@ class DemoNetBox(core.NetBox):
 
     def api(self, method, path, body=None):
         if method != 'GET':
-            raise core.InventoryError('Demo: NetBox-Schreibzugriffe sind deaktiviert.')
+            raise core.InventoryError('Demo: NetBox writes are disabled.')
         parsed, params = urlsplit(path), parse_qs(urlsplit(path).query)
         if parsed.path == '/api/ipam/ip-addresses/':
             rows = self.ips
